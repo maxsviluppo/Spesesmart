@@ -180,7 +180,7 @@ export const TransactionItem: React.FC<Props> = ({ transaction, onDelete, onEdit
         </div>
         
         <div className="flex flex-col items-end gap-1 pointer-events-none">
-          <span className={`font-bold ${isExpense ? 'text-slate-300' : 'text-emerald-400'}`}>
+          <span className={`font-bold ${isExpense ? 'text-red-400' : 'text-emerald-400'}`}>
             {isExpense ? '-' : '+'}€{transaction.amount.toFixed(2)}
           </span>
         </div>
