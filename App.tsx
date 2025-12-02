@@ -11,7 +11,8 @@ import {
   PieChart, 
   Sparkles,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  TrendingUp
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -19,10 +20,6 @@ import {
   Cell, 
   ResponsiveContainer, 
   Tooltip, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis 
 } from 'recharts';
 
 function App() {
@@ -113,30 +110,30 @@ function App() {
     setLoadingAi(false);
   };
 
-  // Colors for Chart
-  const COLORS = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'];
+  // Colors for Chart (Adapted for Dark Mode)
+  const COLORS = ['#818cf8', '#f472b6', '#34d399', '#fbbf24', '#a78bfa', '#22d3ee'];
 
   return (
-    <div className="min-h-screen pb-24 max-w-lg mx-auto bg-slate-50 border-x border-slate-100 shadow-2xl overflow-hidden relative">
+    <div className="min-h-screen pb-24 max-w-lg mx-auto bg-slate-950 border-x border-slate-800 shadow-2xl overflow-hidden relative text-slate-200">
       
       {/* Header */}
-      <header className="bg-white p-6 sticky top-0 z-10 border-b border-slate-100 flex items-center justify-between">
+      <header className="bg-slate-950/80 backdrop-blur-md p-6 sticky top-0 z-10 border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white">
+          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
             <Wallet size={18} strokeWidth={3} />
           </div>
-          <h1 className="text-xl font-bold text-slate-800 tracking-tight">SpeseSmart</h1>
+          <h1 className="text-xl font-bold text-slate-100 tracking-tight">SpeseSmart</h1>
         </div>
         
         {/* Date Navigator */}
-        <div className="flex items-center bg-slate-100 rounded-full p-1">
-          <button onClick={() => changeMonth(-1)} className="p-1 rounded-full hover:bg-white hover:shadow-sm transition-all text-slate-500">
+        <div className="flex items-center bg-slate-900 rounded-full p-1 border border-slate-800">
+          <button onClick={() => changeMonth(-1)} className="p-1 rounded-full hover:bg-slate-800 hover:text-white transition-all text-slate-500">
             <ChevronLeft size={16} />
           </button>
-          <span className="px-3 text-sm font-semibold text-slate-700 capitalize w-32 text-center">
+          <span className="px-3 text-sm font-semibold text-slate-300 capitalize w-32 text-center">
             {currentDate.toLocaleString('it-IT', { month: 'long', year: 'numeric' })}
           </span>
-          <button onClick={() => changeMonth(1)} className="p-1 rounded-full hover:bg-white hover:shadow-sm transition-all text-slate-500">
+          <button onClick={() => changeMonth(1)} className="p-1 rounded-full hover:bg-slate-800 hover:text-white transition-all text-slate-500">
             <ChevronRight size={16} />
           </button>
         </div>
@@ -150,18 +147,16 @@ function App() {
           <StatsCard label="Uscite" amount={stats.totalExpense} type="expense" />
         </div>
         <div className="w-full">
-           <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
+           <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-sm flex justify-between items-center">
              <div>
                <p className="text-xs text-slate-500 uppercase font-bold tracking-wide">Saldo Attuale</p>
-               <p className={`text-2xl font-extrabold ${stats.balance >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
+               <p className={`text-3xl font-extrabold mt-1 ${stats.balance >= 0 ? 'text-indigo-400' : 'text-red-400'}`}>
                  {stats.balance.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
                </p>
              </div>
-             {activeTab === 'home' && (
-                <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-300">
-                  <BarChart3 size={20} />
-                </div>
-             )}
+             <div className="h-10 w-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-500">
+               <TrendingUp size={20} />
+             </div>
            </div>
         </div>
 
@@ -169,8 +164,8 @@ function App() {
         {activeTab === 'home' ? (
           <div className="space-y-4">
              <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-800">Transazioni Recenti</h2>
-              <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
+              <h2 className="text-lg font-bold text-slate-100">Transazioni Recenti</h2>
+              <span className="text-xs text-slate-500 bg-slate-900 border border-slate-800 px-2 py-1 rounded-full">
                 {filteredTransactions.length} mov.
               </span>
              </div>
@@ -183,20 +178,20 @@ function App() {
                </div>
              ) : (
                <div className="text-center py-12 opacity-50">
-                 <div className="bg-slate-200 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3">
-                   <Plus size={32} className="text-slate-400" />
+                 <div className="bg-slate-900 border border-slate-800 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3">
+                   <Plus size={32} className="text-slate-600" />
                  </div>
-                 <p className="text-slate-500">Nessuna transazione questo mese.</p>
-                 <p className="text-xs text-slate-400 mt-1">Tocca il tasto + per iniziare</p>
+                 <p className="text-slate-400">Nessuna transazione questo mese.</p>
+                 <p className="text-xs text-slate-600 mt-1">Tocca il tasto + per iniziare</p>
                </div>
              )}
           </div>
         ) : (
           <div className="space-y-6 animate-fade-in">
             {/* Charts Section */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-              <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <PieChart size={18} className="text-indigo-500" />
+            <div className="bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-800">
+              <h3 className="font-bold text-slate-100 mb-6 flex items-center gap-2">
+                <PieChart size={18} className="text-indigo-400" />
                 Spese per Categoria
               </h3>
               
@@ -212,6 +207,7 @@ function App() {
                         outerRadius={80}
                         paddingAngle={5}
                         dataKey="value"
+                        stroke="none"
                       >
                         {categoryData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -219,55 +215,62 @@ function App() {
                       </Pie>
                       <Tooltip 
                         formatter={(value: number) => `€${value.toFixed(2)}`}
-                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        contentStyle={{ 
+                          backgroundColor: '#1e293b', 
+                          borderRadius: '12px', 
+                          border: '1px solid #334155', 
+                          color: '#f8fafc',
+                          boxShadow: '0 4px 20px -1px rgb(0 0 0 / 0.3)' 
+                        }}
+                        itemStyle={{ color: '#e2e8f0' }}
                       />
                     </RePieChart>
                   </ResponsiveContainer>
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     {categoryData.map((entry, index) => (
                       <div key={entry.name} className="flex items-center gap-2 text-xs">
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
-                        <span className="text-slate-600 truncate flex-1">{entry.name}</span>
-                        <span className="font-bold text-slate-800">€{entry.value.toFixed(0)}</span>
+                        <div className="w-2 h-2 rounded-full shadow-sm shadow-black/50" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                        <span className="text-slate-400 truncate flex-1">{entry.name}</span>
+                        <span className="font-bold text-slate-200">€{entry.value.toFixed(0)}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               ) : (
-                <p className="text-center text-slate-400 py-10">Nessuna spesa da analizzare.</p>
+                <p className="text-center text-slate-600 py-10">Nessuna spesa da analizzare.</p>
               )}
             </div>
 
             {/* AI Section */}
-            <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-6 rounded-2xl text-white shadow-lg relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-4 opacity-10">
+            <div className="bg-gradient-to-br from-indigo-900 to-purple-900 p-6 rounded-2xl text-white shadow-xl shadow-indigo-900/10 border border-indigo-800/30 relative overflow-hidden">
+               <div className="absolute top-0 right-0 p-4 opacity-20">
                  <Sparkles size={100} />
                </div>
                
-               <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
+               <h3 className="font-bold text-lg mb-2 flex items-center gap-2 text-indigo-100">
                  <Sparkles size={20} className="text-yellow-300" />
                  AI Advisor
                </h3>
                
                {!aiAdvice ? (
                  <div className="relative z-10">
-                   <p className="text-indigo-100 text-sm mb-4">Ottieni un'analisi intelligente delle tue abitudini di spesa per questo mese.</p>
+                   <p className="text-indigo-200/80 text-sm mb-4">Ottieni un'analisi intelligente delle tue abitudini di spesa per questo mese.</p>
                    <button 
                     onClick={handleAiAnalysis}
                     disabled={loadingAi}
-                    className="bg-white/20 hover:bg-white/30 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-semibold transition-all w-full border border-white/10 flex items-center justify-center gap-2"
+                    className="bg-white/10 hover:bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-semibold transition-all w-full border border-white/10 flex items-center justify-center gap-2 text-white"
                    >
                      {loadingAi ? 'Analisi in corso...' : 'Genera Report AI'}
                    </button>
                  </div>
                ) : (
                  <div className="relative z-10 animate-fade-in">
-                   <div className="text-sm leading-relaxed text-indigo-50 prose prose-invert prose-sm max-w-none">
+                   <div className="text-sm leading-relaxed text-indigo-100 prose prose-invert prose-sm max-w-none">
                      <div dangerouslySetInnerHTML={{ __html: aiAdvice.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>') }} />
                    </div>
                    <button 
                     onClick={() => setAiAdvice(null)}
-                    className="mt-4 text-xs text-indigo-200 hover:text-white underline"
+                    className="mt-4 text-xs text-indigo-300 hover:text-white underline"
                    >
                      Chiudi analisi
                    </button>
@@ -281,7 +284,7 @@ function App() {
       {/* Floating Action Button for Desktop/Mobile hybrid feeling */}
       <button
         onClick={() => setIsModalOpen(true)}
-        className="fixed bottom-24 right-4 sm:right-[calc(50%-240px+1rem)] bg-indigo-600 text-white p-4 rounded-full shadow-xl hover:bg-indigo-700 active:scale-90 transition-all z-20"
+        className="fixed bottom-24 right-4 sm:right-[calc(50%-240px+1rem)] bg-indigo-600 text-white p-4 rounded-full shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 active:scale-90 transition-all z-20"
         aria-label="Aggiungi Transazione"
       >
         <Plus size={28} />
@@ -295,11 +298,11 @@ function App() {
       />
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 pb-safe pt-2 px-6 h-20 sm:max-w-lg sm:mx-auto z-20">
+      <nav className="fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 pb-safe pt-2 px-6 h-20 sm:max-w-lg sm:mx-auto z-20">
         <div className="flex justify-around items-center h-full pb-2">
           <button 
             onClick={() => setActiveTab('home')}
-            className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'home' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'home' ? 'text-indigo-400' : 'text-slate-600 hover:text-slate-400'}`}
           >
             <Wallet size={24} />
             <span className="text-[10px] font-medium">Home</span>
@@ -310,7 +313,7 @@ function App() {
 
           <button 
             onClick={() => setActiveTab('reports')}
-            className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'reports' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'reports' ? 'text-indigo-400' : 'text-slate-600 hover:text-slate-400'}`}
           >
             <BarChart3 size={24} />
             <span className="text-[10px] font-medium">Report</span>

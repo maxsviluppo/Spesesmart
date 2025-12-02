@@ -32,28 +32,28 @@ export const AddModal: React.FC<Props> = ({ isOpen, onClose, onAdd }) => {
   const categories = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
-        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h2 className="text-lg font-bold text-slate-800">Nuova Transazione</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-800 overflow-hidden animate-slide-up">
+        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900">
+          <h2 className="text-lg font-bold text-slate-100">Nuova Transazione</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-200 transition-colors">
             <X size={24} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Type Toggle */}
-          <div className="flex bg-slate-100 p-1 rounded-lg">
+          <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
             <button
               type="button"
-              className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'expense' ? 'bg-white text-red-500 shadow-sm' : 'text-slate-500'}`}
+              className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'expense' ? 'bg-slate-800 text-red-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
               onClick={() => { setType('expense'); setCategory(EXPENSE_CATEGORIES[0]); }}
             >
               Uscita
             </button>
             <button
               type="button"
-              className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'income' ? 'bg-white text-emerald-500 shadow-sm' : 'text-slate-500'}`}
+              className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'income' ? 'bg-slate-800 text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
               onClick={() => { setType('income'); setCategory(INCOME_CATEGORIES[0]); }}
             >
               Entrata
@@ -69,7 +69,7 @@ export const AddModal: React.FC<Props> = ({ isOpen, onClose, onAdd }) => {
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00"
-              className="w-full text-4xl font-bold text-slate-800 placeholder-slate-200 outline-none border-b border-slate-200 focus:border-indigo-500 pb-2 bg-transparent"
+              className="w-full text-4xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 bg-transparent transition-colors"
               autoFocus
               required
             />
@@ -83,7 +83,7 @@ export const AddModal: React.FC<Props> = ({ isOpen, onClose, onAdd }) => {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Es. Spesa settimanale"
-              className="w-full p-3 bg-slate-50 rounded-lg outline-none focus:ring-2 focus:ring-indigo-100 transition-all"
+              className="w-full p-3 bg-slate-950 border border-slate-800 text-slate-200 rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder-slate-600"
               required
             />
           </div>
@@ -100,7 +100,7 @@ export const AddModal: React.FC<Props> = ({ isOpen, onClose, onAdd }) => {
                   className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                     category === cat 
                       ? 'bg-indigo-600 text-white border-indigo-600' 
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+                      : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-indigo-500 hover:text-slate-200'
                   }`}
                 >
                   {cat}
@@ -111,7 +111,7 @@ export const AddModal: React.FC<Props> = ({ isOpen, onClose, onAdd }) => {
 
           <button
             type="submit"
-            className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+            className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-indigo-900/20 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center gap-2"
           >
             <Check size={20} /> Salva
           </button>
