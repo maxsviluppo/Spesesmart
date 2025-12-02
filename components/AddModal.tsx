@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Transaction, TransactionType } from '../types';
+import { Transaction, TransactionType } from '../types.ts';
 import { X, Check, Save, Plus } from 'lucide-react';
 
 interface Props {

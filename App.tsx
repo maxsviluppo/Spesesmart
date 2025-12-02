@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Transaction, TransactionType, MonthlyStats, DEFAULT_EXPENSE_CATEGORIES, DEFAULT_INCOME_CATEGORIES } from './types';
-import { AddModal } from './components/AddModal';
-import { TransactionItem } from './components/TransactionItem';
-import { StatsCard } from './components/StatsCard';
-import { getFinancialAdvice } from './services/geminiService';
+import { Transaction, TransactionType, MonthlyStats, DEFAULT_EXPENSE_CATEGORIES, DEFAULT_INCOME_CATEGORIES } from './types.ts';
+import { AddModal } from './components/AddModal.tsx';
+import { TransactionItem } from './components/TransactionItem.tsx';
+import { StatsCard } from './components/StatsCard.tsx';
+import { getFinancialAdvice } from './services/geminiService.ts';
 import { 
   Plus, 
   Wallet, 
@@ -14,7 +14,8 @@ import {
   ChevronRight,
   TrendingUp,
   Info,
-  CalendarDays
+  CalendarDays,
+  Filter
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -47,6 +48,9 @@ function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'reports'>('home');
   const [currentDate, setCurrentDate] = useState(new Date());
   
+  // Filter State
+  const [selectedCategory, setSelectedCategory] = useState<string>('Tutte');
+  
   // AI State
   const [aiAdvice, setAiAdvice] = useState<string | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
@@ -64,8 +68,8 @@ function App() {
     localStorage.setItem('spesesmart_income_categories', JSON.stringify(incomeCategories));
   }, [incomeCategories]);
 
-  // Derived Data
-  const filteredTransactions = useMemo(() => {
+  // Derived Data: Transactions for the current month
+  const monthlyTransactions = useMemo(() => {
     return transactions.filter(t => {
       const tDate = new Date(t.date);
       return tDate.getMonth() === currentDate.getMonth() && 
@@ -73,8 +77,23 @@ function App() {
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, currentDate]);
 
+  // Derived Data: Transactions to display in the list (Filtered by Category)
+  const displayedTransactions = useMemo(() => {
+    if (selectedCategory === 'Tutte') {
+      return monthlyTransactions;
+    }
+    return monthlyTransactions.filter(t => t.category === selectedCategory);
+  }, [monthlyTransactions, selectedCategory]);
+
+  // Combined Categories for the Filter List
+  const allCategories = useMemo(() => {
+    const categories = new Set([...expenseCategories, ...incomeCategories]);
+    return ['Tutte', ...Array.from(categories).sort()];
+  }, [expenseCategories, incomeCategories]);
+
+  // Stats are always calculated on the full month data, regardless of visual filter
   const stats: MonthlyStats = useMemo(() => {
-    return filteredTransactions.reduce((acc, curr) => {
+    return monthlyTransactions.reduce((acc, curr) => {
       if (curr.type === 'income') {
         acc.totalIncome += curr.amount;
         acc.balance += curr.amount;
@@ -84,11 +103,11 @@ function App() {
       }
       return acc;
     }, { totalIncome: 0, totalExpense: 0, balance: 0 });
-  }, [filteredTransactions]);
+  }, [monthlyTransactions]);
 
   const categoryData = useMemo(() => {
     const data: Record<string, number> = {};
-    filteredTransactions
+    monthlyTransactions
       .filter(t => t.type === 'expense')
       .forEach(t => {
         data[t.category] = (data[t.category] || 0) + t.amount;
@@ -96,7 +115,7 @@ function App() {
     return Object.entries(data)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
-  }, [filteredTransactions]);
+  }, [monthlyTransactions]);
 
   // Handlers
   const handleSaveTransaction = (amount: number, description: string, category: string, type: TransactionType, id?: string) => {
@@ -144,12 +163,8 @@ function App() {
   };
 
   const handleDelete = (id: string) => {
-    // Vibration feedback on mobile if supported
-    if (navigator.vibrate) navigator.vibrate(50);
-    
-    if(confirm('Sei sicuro di voler eliminare questa transazione?')) {
-      setTransactions(prev => prev.filter(t => t.id !== id));
-    }
+    // Direct delete without confirmation for speed (since gesture is deliberate)
+    setTransactions(prev => prev.filter(t => t.id !== id));
   };
 
   const changeMonth = (delta: number) => {
@@ -157,6 +172,7 @@ function App() {
     newDate.setMonth(newDate.getMonth() + delta);
     setCurrentDate(newDate);
     setAiAdvice(null); // Reset AI advice when month changes
+    setSelectedCategory('Tutte'); // Reset filter on month change
   };
 
   const handleDateSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -165,13 +181,14 @@ function App() {
       const newDate = new Date(parseInt(year), parseInt(month) - 1, 1);
       setCurrentDate(newDate);
       setAiAdvice(null);
+      setSelectedCategory('Tutte');
     }
   };
 
   const handleAiAnalysis = async () => {
     setLoadingAi(true);
     const monthName = currentDate.toLocaleString('it-IT', { month: 'long', year: 'numeric' });
-    const advice = await getFinancialAdvice(filteredTransactions, monthName);
+    const advice = await getFinancialAdvice(monthlyTransactions, monthName);
     setAiAdvice(advice);
     setLoadingAi(false);
   };
@@ -245,35 +262,66 @@ function App() {
         {activeTab === 'home' ? (
           <div className="space-y-4">
              <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-100">Transazioni Recenti</h2>
+              <h2 className="text-lg font-bold text-slate-100">Transazioni</h2>
               <span className="text-xs text-slate-500 bg-slate-900 border border-slate-800 px-2 py-1 rounded-full">
-                {filteredTransactions.length} mov.
+                {displayedTransactions.length} mov.
               </span>
              </div>
 
-             {filteredTransactions.length > 0 ? (
+             {/* Category Filter Scroll */}
+             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+                <div className="flex items-center justify-center min-w-[32px] h-8 rounded-full bg-slate-900 border border-slate-800 text-slate-500">
+                  <Filter size={14} />
+                </div>
+                {allCategories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                      selectedCategory === cat 
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/30' 
+                        : 'bg-slate-900 text-slate-400 border border-slate-800 hover:border-slate-600'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+             </div>
+
+             {displayedTransactions.length > 0 ? (
                <div className="space-y-0">
                  <div className="flex items-center gap-2 mb-2 px-2">
                     <Info size={12} className="text-slate-600" />
                     <span className="text-[10px] text-slate-600 uppercase tracking-wider">Scorri: SX per Eliminare • DX per Modificare</span>
                  </div>
-                 {filteredTransactions.map((t, index) => (
+                 {displayedTransactions.map((t, index) => (
                    <TransactionItem 
                      key={t.id} 
                      transaction={t} 
                      onDelete={handleDelete}
                      onEdit={handleEdit}
-                     isFirst={index === 0}
+                     isFirst={index === 0 && selectedCategory === 'Tutte'}
                    />
                  ))}
                </div>
              ) : (
                <div className="text-center py-12 opacity-50">
-                 <div className="bg-slate-900 border border-slate-800 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3">
-                   <Plus size={32} className="text-slate-600" />
-                 </div>
-                 <p className="text-slate-400">Nessuna transazione questo mese.</p>
-                 <p className="text-xs text-slate-600 mt-1">Tocca il tasto + per iniziare</p>
+                 {monthlyTransactions.length > 0 ? (
+                   <>
+                    <div className="bg-slate-900 border border-slate-800 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Filter size={32} className="text-slate-600" />
+                    </div>
+                    <p className="text-slate-400">Nessuna transazione per questa categoria.</p>
+                   </>
+                 ) : (
+                   <>
+                    <div className="bg-slate-900 border border-slate-800 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Plus size={32} className="text-slate-600" />
+                    </div>
+                    <p className="text-slate-400">Nessuna transazione questo mese.</p>
+                    <p className="text-xs text-slate-600 mt-1">Tocca il tasto + per iniziare</p>
+                   </>
+                 )}
                </div>
              )}
           </div>

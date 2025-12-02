@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Transaction } from '../types';
+import { Transaction } from '../types.ts';
 import { ArrowUpCircle, ArrowDownCircle, Trash2, Edit2 } from 'lucide-react';
 
 interface Props {
@@ -16,34 +16,36 @@ export const TransactionItem: React.FC<Props> = ({ transaction, onDelete, onEdit
   const [startX, setStartX] = useState<number | null>(null);
   const [currentX, setCurrentX] = useState<number>(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false); // New state to handle exit animation
   const itemRef = useRef<HTMLDivElement>(null);
 
   // Constants for swipe
-  const SWIPE_THRESHOLD = 70; // Lowered from 80 to make deletion easier
-  const MAX_SWIPE = 120; 
+  const SWIPE_THRESHOLD = 70; 
+  const DELETE_THRESHOLD = 150; // Threshold to trigger full delete
+  const MAX_SWIPE_RIGHT = 100; // Limit for edit (right swipe) only
 
   // Auto-swipe hint animation
   useEffect(() => {
-    if (!isFirst) return;
+    if (!isFirst || isDeleting) return;
 
     const interval = setInterval(() => {
-      if (isDragging) return; // Don't animate while user interacts
+      if (isDragging || isDeleting) return; 
 
-      // Sequence: Slide Left (Show Delete) -> Slide Right (Show Edit) -> Center
-      setCurrentX(-50);
+      // Hint sequence
+      setCurrentX(-40);
       
       setTimeout(() => {
-        if (!isDragging) setCurrentX(50);
-      }, 500);
+        if (!isDragging && !isDeleting) setCurrentX(40);
+      }, 400);
 
       setTimeout(() => {
-        if (!isDragging) setCurrentX(0);
-      }, 1000);
+        if (!isDragging && !isDeleting) setCurrentX(0);
+      }, 800);
 
-    }, 5000); // Repeat every 5 seconds
+    }, 5000);
 
     return () => clearInterval(interval);
-  }, [isFirst, isDragging]);
+  }, [isFirst, isDragging, isDeleting]);
 
   // Touch Handlers
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -52,36 +54,40 @@ export const TransactionItem: React.FC<Props> = ({ transaction, onDelete, onEdit
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (startX === null) return;
+    if (startX === null || isDeleting) return;
     const x = e.touches[0].clientX;
     const diff = x - startX;
     
-    // Limit the swipe distance visual
-    if (diff > MAX_SWIPE) setCurrentX(MAX_SWIPE);
-    else if (diff < -MAX_SWIPE) setCurrentX(-MAX_SWIPE);
-    else setCurrentX(diff);
+    // Logic: Limit swipe to the RIGHT (Edit), but allow full swipe to the LEFT (Delete)
+    if (diff > MAX_SWIPE_RIGHT) {
+        setCurrentX(MAX_SWIPE_RIGHT + (diff - MAX_SWIPE_RIGHT) * 0.2); // Rubber band effect right
+    } else {
+        setCurrentX(diff); // Free movement left
+    }
   };
 
   const handleTouchEnd = () => {
     handleSwipeEnd();
   };
 
-  // Mouse Handlers (for desktop testing)
+  // Mouse Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     setStartX(e.clientX);
     setIsDragging(true);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || startX === null) return;
+    if (!isDragging || startX === null || isDeleting) return;
     e.preventDefault(); 
     
     const x = e.clientX;
     const diff = x - startX;
 
-    if (diff > MAX_SWIPE) setCurrentX(MAX_SWIPE);
-    else if (diff < -MAX_SWIPE) setCurrentX(-MAX_SWIPE);
-    else setCurrentX(diff);
+    if (diff > MAX_SWIPE_RIGHT) {
+         setCurrentX(MAX_SWIPE_RIGHT + (diff - MAX_SWIPE_RIGHT) * 0.2);
+    } else {
+         setCurrentX(diff);
+    }
   };
 
   const handleMouseUp = () => {
@@ -100,31 +106,42 @@ export const TransactionItem: React.FC<Props> = ({ transaction, onDelete, onEdit
       // Swipe Right -> Edit
       onEdit(transaction);
       setCurrentX(0); 
-    } else if (currentX < -SWIPE_THRESHOLD) {
-      // Swipe Left -> Delete
-      // Slight delay to allow state to settle before confirm dialog
-      setTimeout(() => onDelete(transaction.id), 50);
-      setCurrentX(0);
+    } else if (currentX < -DELETE_THRESHOLD) {
+      // Swipe Left -> Full Delete
+      setIsDeleting(true);
+      setCurrentX(-window.innerWidth); // Animate completely off screen
+      
+      // Haptic feedback
+      if (navigator.vibrate) navigator.vibrate(50);
+
+      // Wait for animation then delete
+      setTimeout(() => onDelete(transaction.id), 300);
     } else {
-      // Snap back
+      // Snap back if threshold not met
       setCurrentX(0);
     }
     setStartX(null);
   };
 
-  // Helper to determine background color based on swipe direction
+  // Helper to determine background color
   const getSwipeBackground = () => {
     if (currentX > 0) return 'bg-indigo-600'; // Edit Color
     if (currentX < 0) return 'bg-red-600'; // Delete Color
     return 'bg-slate-900';
   };
 
+  if (isDeleting && Math.abs(currentX) >= window.innerWidth) {
+      // Return null or placeholder while waiting for parent to delete data
+      // This prevents visual glitching before the list re-renders
+      return <div className="h-[88px] mb-3 w-full"></div>;
+  }
+
   return (
     <div 
       className="relative mb-3 h-[88px] w-full overflow-hidden rounded-xl select-none touch-pan-y"
       onMouseLeave={handleMouseLeave}
       onMouseUp={handleMouseUp}
-      style={{ touchAction: 'pan-y' }} // IMPORTANT: Allows vertical scroll but captures horizontal
+      style={{ touchAction: 'pan-y' }}
     >
       {/* Background Layer (Actions) */}
       <div className={`absolute inset-0 flex items-center justify-between px-6 transition-colors ${getSwipeBackground()}`}>

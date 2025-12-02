@@ -6,6 +6,7 @@
     <meta name="theme-color" content="#020617" />
     <title>SpeseSmart</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
       body {
@@ -51,9 +52,17 @@
   }
 }
 </script>
+<script>
+  // Polyfill per evitare crash su GitHub Pages dove process non esiste
+  window.process = {
+    env: {
+      API_KEY: '' // Su GitHub Pages questo sarà vuoto
+    }
+  }
+</script>
 </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="./index.tsx"></script>
+    <script type="text/babel" data-type="module" data-presets="react,typescript" src="./index.tsx"></script>
   </body>
 </html>

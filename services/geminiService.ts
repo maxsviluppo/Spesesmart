@@ -1,9 +1,17 @@
 import { GoogleGenAI } from "@google/genai";
-import { Transaction } from "../types";
+import { Transaction } from "../types.ts";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Safe init: check if env exists (for GitHub Pages compatibility)
+const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '';
+
+// Only init AI if key is present to prevent immediate crash on static host
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const getFinancialAdvice = async (transactions: Transaction[], month: string) => {
+  if (!ai) {
+    return "API Key mancante. Configura le variabili d'ambiente per usare l'AI.";
+  }
+
   if (transactions.length === 0) {
     return "Non ci sono abbastanza dati per generare un'analisi questo mese. Aggiungi alcune spese!";
   }
