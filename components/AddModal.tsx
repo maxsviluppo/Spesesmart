@@ -1,18 +1,67 @@
-import React, { useState } from 'react';
-import { TransactionType, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../types';
-import { X, Check } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Transaction, TransactionType } from '../types';
+import { X, Check, Save, Plus } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (amount: number, description: string, category: string, type: TransactionType) => void;
+  onSave: (amount: number, description: string, category: string, type: TransactionType, id?: string) => void;
+  initialData?: Transaction | null;
+  expenseCategories: string[];
+  incomeCategories: string[];
+  onAddCategory: (newCategory: string, type: TransactionType) => void;
 }
 
-export const AddModal: React.FC<Props> = ({ isOpen, onClose, onAdd }) => {
+export const AddModal: React.FC<Props> = ({ 
+  isOpen, 
+  onClose, 
+  onSave, 
+  initialData,
+  expenseCategories,
+  incomeCategories,
+  onAddCategory
+}) => {
   const [type, setType] = useState<TransactionType>('expense');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState(EXPENSE_CATEGORIES[0]);
+  const [category, setCategory] = useState('');
+  
+  // New Category Logic
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const newCategoryInputRef = useRef<HTMLInputElement>(null);
+
+  // Determine current list based on type
+  const currentCategories = type === 'expense' ? expenseCategories : incomeCategories;
+
+  // Reset or Populate form when modal opens or initialData changes
+  useEffect(() => {
+    if (isOpen) {
+      setIsAddingCategory(false);
+      setNewCategoryName('');
+
+      if (initialData) {
+        setType(initialData.type);
+        setAmount(initialData.amount.toString());
+        setDescription(initialData.description);
+        setCategory(initialData.category);
+      } else {
+        // Reset for new entry
+        setType('expense');
+        setAmount('');
+        setDescription('');
+        // Default category is the first one available
+        setCategory(expenseCategories[0] || '');
+      }
+    }
+  }, [isOpen, initialData, expenseCategories]); // Added expenseCategories to dependency to ensure reset works on load
+
+  // Focus input when adding category
+  useEffect(() => {
+    if (isAddingCategory && newCategoryInputRef.current) {
+      newCategoryInputRef.current.focus();
+    }
+  }, [isAddingCategory]);
 
   if (!isOpen) return null;
 
@@ -20,22 +69,46 @@ export const AddModal: React.FC<Props> = ({ isOpen, onClose, onAdd }) => {
     e.preventDefault();
     if (!amount || !description) return;
     
-    onAdd(parseFloat(amount), description, category, type);
+    onSave(
+      parseFloat(amount), 
+      description, 
+      category || currentCategories[0], // Fallback if somehow empty
+      type,
+      initialData?.id // Pass ID if editing
+    );
     
-    // Reset fields
-    setAmount('');
-    setDescription('');
-    setCategory(type === 'expense' ? EXPENSE_CATEGORIES[0] : INCOME_CATEGORIES[0]);
     onClose();
   };
 
-  const categories = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+  const handleCreateCategory = () => {
+    if (newCategoryName.trim()) {
+      onAddCategory(newCategoryName.trim(), type);
+      setCategory(newCategoryName.trim()); // Select the new category
+      setNewCategoryName('');
+      setIsAddingCategory(false);
+    } else {
+      setIsAddingCategory(false);
+    }
+  };
+
+  const handleKeyDownCategory = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleCreateCategory();
+    } else if (e.key === 'Escape') {
+      setIsAddingCategory(false);
+    }
+  };
+
+  const isEditing = !!initialData;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-800 overflow-hidden animate-slide-up">
-        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900">
-          <h2 className="text-lg font-bold text-slate-100">Nuova Transazione</h2>
+      <div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-800 overflow-hidden animate-slide-up max-h-[90vh] overflow-y-auto no-scrollbar">
+        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900 sticky top-0 z-10">
+          <h2 className="text-lg font-bold text-slate-100">
+            {isEditing ? 'Modifica Transazione' : 'Nuova Transazione'}
+          </h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-200 transition-colors">
             <X size={24} />
           </button>
@@ -47,14 +120,22 @@ export const AddModal: React.FC<Props> = ({ isOpen, onClose, onAdd }) => {
             <button
               type="button"
               className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'expense' ? 'bg-slate-800 text-red-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
-              onClick={() => { setType('expense'); setCategory(EXPENSE_CATEGORIES[0]); }}
+              onClick={() => { 
+                setType('expense'); 
+                setCategory(expenseCategories[0] || ''); 
+                setIsAddingCategory(false);
+              }}
             >
               Uscita
             </button>
             <button
               type="button"
               className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'income' ? 'bg-slate-800 text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
-              onClick={() => { setType('income'); setCategory(INCOME_CATEGORIES[0]); }}
+              onClick={() => { 
+                setType('income'); 
+                setCategory(incomeCategories[0] || '');
+                setIsAddingCategory(false);
+              }}
             >
               Entrata
             </button>
@@ -70,7 +151,7 @@ export const AddModal: React.FC<Props> = ({ isOpen, onClose, onAdd }) => {
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00"
               className="w-full text-4xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 bg-transparent transition-colors"
-              autoFocus
+              autoFocus={!isEditing}
               required
             />
           </div>
@@ -92,7 +173,7 @@ export const AddModal: React.FC<Props> = ({ isOpen, onClose, onAdd }) => {
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase mb-2">Categoria</label>
             <div className="flex flex-wrap gap-2">
-              {categories.map(cat => (
+              {currentCategories.map(cat => (
                 <button
                   key={cat}
                   type="button"
@@ -106,6 +187,31 @@ export const AddModal: React.FC<Props> = ({ isOpen, onClose, onAdd }) => {
                   {cat}
                 </button>
               ))}
+
+              {/* Add Category Button/Input */}
+              {isAddingCategory ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    ref={newCategoryInputRef}
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    onBlur={handleCreateCategory} // Save on blur
+                    onKeyDown={handleKeyDownCategory}
+                    placeholder="Nuova..."
+                    className="px-3 py-1.5 rounded-full text-xs font-medium border border-indigo-500 bg-slate-800 text-white outline-none w-24 placeholder-slate-500"
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsAddingCategory(true)}
+                  className="px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-slate-600 text-slate-500 hover:border-slate-400 hover:text-slate-300 transition-all flex items-center gap-1"
+                >
+                  <Plus size={12} />
+                  Nuova
+                </button>
+              )}
             </div>
           </div>
 
@@ -113,7 +219,8 @@ export const AddModal: React.FC<Props> = ({ isOpen, onClose, onAdd }) => {
             type="submit"
             className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-indigo-900/20 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center gap-2"
           >
-            <Check size={20} /> Salva
+            {isEditing ? <Save size={20} /> : <Check size={20} />} 
+            {isEditing ? 'Aggiorna' : 'Salva'}
           </button>
         </form>
       </div>

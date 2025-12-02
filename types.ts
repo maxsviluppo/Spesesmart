@@ -9,7 +9,7 @@ export interface Transaction {
   type: TransactionType;
 }
 
-export const EXPENSE_CATEGORIES = [
+export const DEFAULT_EXPENSE_CATEGORIES = [
   'Alimentari',
   'Trasporti',
   'Casa',
@@ -20,7 +20,7 @@ export const EXPENSE_CATEGORIES = [
   'Altro'
 ];
 
-export const INCOME_CATEGORIES = [
+export const DEFAULT_INCOME_CATEGORIES = [
   'Stipendio',
   'Regalo',
   'Vendita',

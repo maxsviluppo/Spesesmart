@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Transaction, TransactionType, MonthlyStats } from './types';
+import { Transaction, TransactionType, MonthlyStats, DEFAULT_EXPENSE_CATEGORIES, DEFAULT_INCOME_CATEGORIES } from './types';
 import { AddModal } from './components/AddModal';
 import { TransactionItem } from './components/TransactionItem';
 import { StatsCard } from './components/StatsCard';
@@ -12,7 +12,9 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
-  TrendingUp
+  TrendingUp,
+  Info,
+  CalendarDays
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -23,13 +25,25 @@ import {
 } from 'recharts';
 
 function App() {
-  // State
+  // State Transactions
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('spesesmart_transactions');
     return saved ? JSON.parse(saved) : [];
   });
+
+  // State Categories
+  const [expenseCategories, setExpenseCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem('spesesmart_expense_categories');
+    return saved ? JSON.parse(saved) : DEFAULT_EXPENSE_CATEGORIES;
+  });
+
+  const [incomeCategories, setIncomeCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem('spesesmart_income_categories');
+    return saved ? JSON.parse(saved) : DEFAULT_INCOME_CATEGORIES;
+  });
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'reports'>('home');
   const [currentDate, setCurrentDate] = useState(new Date());
   
@@ -41,6 +55,14 @@ function App() {
   useEffect(() => {
     localStorage.setItem('spesesmart_transactions', JSON.stringify(transactions));
   }, [transactions]);
+
+  useEffect(() => {
+    localStorage.setItem('spesesmart_expense_categories', JSON.stringify(expenseCategories));
+  }, [expenseCategories]);
+
+  useEffect(() => {
+    localStorage.setItem('spesesmart_income_categories', JSON.stringify(incomeCategories));
+  }, [incomeCategories]);
 
   // Derived Data
   const filteredTransactions = useMemo(() => {
@@ -77,19 +99,54 @@ function App() {
   }, [filteredTransactions]);
 
   // Handlers
-  const handleAddTransaction = (amount: number, description: string, category: string, type: TransactionType) => {
-    const newTransaction: Transaction = {
-      id: crypto.randomUUID(),
-      amount,
-      description,
-      category,
-      type,
-      date: new Date().toISOString()
-    };
-    setTransactions(prev => [newTransaction, ...prev]);
+  const handleSaveTransaction = (amount: number, description: string, category: string, type: TransactionType, id?: string) => {
+    if (id) {
+      // Update existing
+      setTransactions(prev => prev.map(t => 
+        t.id === id 
+          ? { ...t, amount, description, category, type }
+          : t
+      ));
+    } else {
+      // Create new
+      const newTransaction: Transaction = {
+        id: crypto.randomUUID(),
+        amount,
+        description,
+        category,
+        type,
+        date: new Date().toISOString()
+      };
+      setTransactions(prev => [newTransaction, ...prev]);
+    }
+  };
+
+  const handleAddCategory = (newCategory: string, type: TransactionType) => {
+    if (type === 'expense') {
+      if (!expenseCategories.includes(newCategory)) {
+        setExpenseCategories(prev => [...prev, newCategory]);
+      }
+    } else {
+      if (!incomeCategories.includes(newCategory)) {
+        setIncomeCategories(prev => [...prev, newCategory]);
+      }
+    }
+  };
+
+  const handleEdit = (transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenAddModal = () => {
+    setEditingTransaction(null); // Ensure we are in "Add" mode
+    setIsModalOpen(true);
   };
 
   const handleDelete = (id: string) => {
+    // Vibration feedback on mobile if supported
+    if (navigator.vibrate) navigator.vibrate(50);
+    
     if(confirm('Sei sicuro di voler eliminare questa transazione?')) {
       setTransactions(prev => prev.filter(t => t.id !== id));
     }
@@ -102,6 +159,15 @@ function App() {
     setAiAdvice(null); // Reset AI advice when month changes
   };
 
+  const handleDateSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.value) {
+      const [year, month] = e.target.value.split('-');
+      const newDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+      setCurrentDate(newDate);
+      setAiAdvice(null);
+    }
+  };
+
   const handleAiAnalysis = async () => {
     setLoadingAi(true);
     const monthName = currentDate.toLocaleString('it-IT', { month: 'long', year: 'numeric' });
@@ -110,8 +176,11 @@ function App() {
     setLoadingAi(false);
   };
 
+  // Helper for input type="month" value
+  const currentMonthValue = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+
   // Colors for Chart (Adapted for Dark Mode)
-  const COLORS = ['#818cf8', '#f472b6', '#34d399', '#fbbf24', '#a78bfa', '#22d3ee'];
+  const COLORS = ['#818cf8', '#f472b6', '#34d399', '#fbbf24', '#a78bfa', '#22d3ee', '#fb7185', '#e879f9'];
 
   return (
     <div className="min-h-screen pb-24 max-w-lg mx-auto bg-slate-950 border-x border-slate-800 shadow-2xl overflow-hidden relative text-slate-200">
@@ -125,15 +194,27 @@ function App() {
           <h1 className="text-xl font-bold text-slate-100 tracking-tight">SpeseSmart</h1>
         </div>
         
-        {/* Date Navigator */}
+        {/* Date Navigator with Native Picker */}
         <div className="flex items-center bg-slate-900 rounded-full p-1 border border-slate-800">
-          <button onClick={() => changeMonth(-1)} className="p-1 rounded-full hover:bg-slate-800 hover:text-white transition-all text-slate-500">
+          <button onClick={() => changeMonth(-1)} className="p-1 rounded-full hover:bg-slate-800 hover:text-white transition-all text-slate-500 z-10">
             <ChevronLeft size={16} />
           </button>
-          <span className="px-3 text-sm font-semibold text-slate-300 capitalize w-32 text-center">
-            {currentDate.toLocaleString('it-IT', { month: 'long', year: 'numeric' })}
-          </span>
-          <button onClick={() => changeMonth(1)} className="p-1 rounded-full hover:bg-slate-800 hover:text-white transition-all text-slate-500">
+          
+          <div className="relative group mx-1">
+             <div className="flex items-center gap-1 justify-center px-2 text-sm font-semibold text-slate-300 capitalize w-32 py-1 group-hover:text-white transition-colors">
+                {currentDate.toLocaleString('it-IT', { month: 'long', year: 'numeric' })}
+                <CalendarDays size={14} className="opacity-40 group-hover:opacity-100 transition-opacity" />
+             </div>
+             {/* Hidden Native Input */}
+             <input
+                type="month"
+                value={currentMonthValue}
+                onChange={handleDateSelect}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+             />
+          </div>
+
+          <button onClick={() => changeMonth(1)} className="p-1 rounded-full hover:bg-slate-800 hover:text-white transition-all text-slate-500 z-10">
             <ChevronRight size={16} />
           </button>
         </div>
@@ -172,8 +253,18 @@ function App() {
 
              {filteredTransactions.length > 0 ? (
                <div className="space-y-0">
-                 {filteredTransactions.map(t => (
-                   <TransactionItem key={t.id} transaction={t} onDelete={handleDelete} />
+                 <div className="flex items-center gap-2 mb-2 px-2">
+                    <Info size={12} className="text-slate-600" />
+                    <span className="text-[10px] text-slate-600 uppercase tracking-wider">Scorri: SX per Eliminare • DX per Modificare</span>
+                 </div>
+                 {filteredTransactions.map((t, index) => (
+                   <TransactionItem 
+                     key={t.id} 
+                     transaction={t} 
+                     onDelete={handleDelete}
+                     onEdit={handleEdit}
+                     isFirst={index === 0}
+                   />
                  ))}
                </div>
              ) : (
@@ -283,7 +374,7 @@ function App() {
 
       {/* Floating Action Button for Desktop/Mobile hybrid feeling */}
       <button
-        onClick={() => setIsModalOpen(true)}
+        onClick={handleOpenAddModal}
         className="fixed bottom-24 right-4 sm:right-[calc(50%-240px+1rem)] bg-indigo-600 text-white p-4 rounded-full shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 active:scale-90 transition-all z-20"
         aria-label="Aggiungi Transazione"
       >
@@ -294,7 +385,11 @@ function App() {
       <AddModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)}
-        onAdd={handleAddTransaction}
+        onSave={handleSaveTransaction}
+        initialData={editingTransaction}
+        expenseCategories={expenseCategories}
+        incomeCategories={incomeCategories}
+        onAddCategory={handleAddCategory}
       />
 
       {/* Bottom Navigation */}
