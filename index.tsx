@@ -580,7 +580,7 @@ interface SettingsModalProps {
   onClose: () => void;
   settings: UserSettings;
   onUpdateSettings: (newSettings: UserSettings) => void;
-  onReset: () => void;
+  onReset: (keepApiKey: boolean) => void;
   onShowToast: (message: string, type: 'success' | 'error' | 'info') => void;
 }
 
@@ -785,26 +785,62 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             <label className="block text-xs font-bold text-red-500 uppercase tracking-wider flex items-center gap-2">
               <AlertTriangle size={14} /> Zona Pericolo
             </label>
-            <button 
-              onClick={() => setResetStep(prev => prev + 1)}
-              className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
-                resetStep === 0 ? 'bg-slate-800 text-slate-400 hover:bg-red-950/30 hover:text-red-400' : 
-                resetStep === 1 ? 'bg-orange-600 text-white' : 'bg-red-600 text-white'
-              }`}
-            >
-              <LogOut size={18} />
-              {resetStep === 0 ? 'Resetta Dati App' : resetStep === 1 ? 'Sei sicuro? Clicca ancora' : 'Conferma Cancellazione'}
-            </button>
-             {resetStep > 0 && resetStep < 3 && (
+            
+            {resetStep === 0 && (
+              <button 
+                onClick={() => setResetStep(1)}
+                className="w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all bg-slate-800 text-slate-400 hover:bg-red-950/30 hover:text-red-400"
+              >
+                <LogOut size={18} /> Resetta Dati App
+              </button>
+            )}
+
+            {resetStep === 1 && (
+              <button 
+                onClick={() => {
+                  if (settings.apiKey) {
+                    setResetStep(2); // Ask about key
+                  } else {
+                    setResetStep(3); // Go to deleting animation
+                    setTimeout(() => onReset(false), 1000);
+                  }
+                }}
+                className="w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all bg-orange-600 text-white animate-pulse"
+              >
+                <AlertTriangle size={18} /> Sei sicuro? Clicca ancora
+              </button>
+            )}
+
+            {resetStep === 2 && (
+              <div className="space-y-2 animate-fade-in">
+                <p className="text-xs text-slate-400 text-center mb-2">Hai una chiave API salvata. Vuoi eliminarla o mantenerla?</p>
+                <div className="flex gap-2">
+                   <button 
+                     onClick={() => { setResetStep(3); setTimeout(() => onReset(false), 1000); }}
+                     className="flex-1 py-3 rounded-xl font-bold text-sm bg-red-600 text-white hover:bg-red-700 transition-colors"
+                   >
+                     Cancella Tutto
+                   </button>
+                   <button 
+                     onClick={() => { setResetStep(3); setTimeout(() => onReset(true), 1000); }}
+                     className="flex-1 py-3 rounded-xl font-bold text-sm bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                   >
+                     Mantieni Key
+                   </button>
+                </div>
+              </div>
+            )}
+            
+            {resetStep > 0 && resetStep < 3 && (
                  <button onClick={() => setResetStep(0)} className="w-full py-2 text-slate-500 text-sm hover:text-slate-300">Annulla</button>
-             )}
+            )}
           </div>
           
-           {resetStep === 2 && (
-             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90">
-                <div className="text-center p-6">
-                   <p className="text-red-500 font-bold text-xl mb-4">Cancellazione in corso...</p>
-                   {setTimeout(onReset, 1000) && null}
+           {resetStep === 3 && (
+             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 animate-fade-in">
+                <div className="text-center p-6 space-y-4">
+                   <Loader2 size={48} className="text-red-500 animate-spin mx-auto" />
+                   <p className="text-red-500 font-bold text-xl">Cancellazione in corso...</p>
                 </div>
              </div>
            )}
@@ -1316,8 +1352,24 @@ function App() {
   ], [stats]);
 
   // Handlers
-  const handleResetData = () => {
+  const handleResetData = (keepApiKey: boolean) => {
+    const currentApiKey = userSettings.apiKey;
+    
+    // Wipe everything
     localStorage.clear();
+
+    if (keepApiKey && currentApiKey) {
+      // Restore settings with preserved API key
+      const preservedSettings: UserSettings = {
+        userName: '',
+        soundEnabled: true,
+        hapticEnabled: true,
+        apiKey: currentApiKey
+      };
+      localStorage.setItem('spesesmart_settings', JSON.stringify(preservedSettings));
+    }
+
+    // Reload page to reset state
     window.location.reload();
   };
 
