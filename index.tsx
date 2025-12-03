@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import ReactDOM from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { 
   Plus, 
   Wallet, 
@@ -26,14 +26,17 @@ import {
   ChevronDown,
   ChevronUp,
   Mail,
-  RotateCcw
+  RotateCcw,
+  ShoppingCart,
+  ShoppingBag
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
   Pie, 
   Cell, 
   ResponsiveContainer, 
-  Sector
+  Sector,
+  Tooltip
 } from 'recharts';
 import { GoogleGenAI } from "@google/genai";
 
@@ -57,6 +60,13 @@ export interface Task {
   createdAt: number;
 }
 
+export interface ShoppingItem {
+  id: string;
+  name: string;
+  category: string;
+  completed: boolean;
+}
+
 export const DEFAULT_EXPENSE_CATEGORIES = [
   'Alimentari',
   'Trasporti',
@@ -73,6 +83,15 @@ export const DEFAULT_INCOME_CATEGORIES = [
   'Regalo',
   'Vendita',
   'Investimenti',
+  'Altro'
+];
+
+export const DEFAULT_SHOPPING_CATEGORIES = [
+  'Frutta & Verdura',
+  'Alimentari',
+  'Bevande',
+  'Casa & Igiene',
+  'Surgelati',
   'Altro'
 ];
 
@@ -424,6 +443,199 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
   );
 };
 
+// --- COMPONENT: ShoppingListItem ---
+interface ShoppingListItemProps {
+  item: ShoppingItem;
+  onToggle: (id: string) => void;
+  onDelete: (id: string) => void;
+  onEdit: (item: ShoppingItem) => void;
+}
+
+const ShoppingListItem: React.FC<ShoppingListItemProps> = ({ item, onToggle, onDelete, onEdit }) => {
+  // Swipe Logic (Similar to TransactionItem)
+  const [startX, setStartX] = useState<number | null>(null);
+  const [currentX, setCurrentX] = useState<number>(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const SWIPE_THRESHOLD = 70;
+  const DELETE_THRESHOLD = 150;
+  const MAX_SWIPE_RIGHT = 100;
+
+  useEffect(() => {
+    return () => {
+      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+    };
+  }, []);
+
+  // Touch Handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (isConfirmingDelete) return;
+    setStartX(e.touches[0].clientX);
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (startX === null || isDeleting || isConfirmingDelete) return;
+    const x = e.touches[0].clientX;
+    const diff = x - startX;
+    
+    if (diff > MAX_SWIPE_RIGHT) {
+        setCurrentX(MAX_SWIPE_RIGHT + (diff - MAX_SWIPE_RIGHT) * 0.2); 
+    } else {
+        setCurrentX(diff);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    handleSwipeEnd();
+  };
+
+  // Mouse Handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (isConfirmingDelete) return;
+    setStartX(e.clientX);
+    setIsDragging(true);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || startX === null || isDeleting || isConfirmingDelete) return;
+    e.preventDefault(); 
+    const x = e.clientX;
+    const diff = x - startX;
+    if (diff > MAX_SWIPE_RIGHT) {
+         setCurrentX(MAX_SWIPE_RIGHT + (diff - MAX_SWIPE_RIGHT) * 0.2);
+    } else {
+         setCurrentX(diff);
+    }
+  };
+
+  const handleMouseUp = () => {
+    handleSwipeEnd();
+  };
+
+  const handleMouseLeave = () => {
+    if (isDragging) handleSwipeEnd();
+  };
+
+  const handleSwipeEnd = () => {
+    setIsDragging(false);
+    if (currentX > SWIPE_THRESHOLD) {
+      onEdit(item);
+      setCurrentX(0); 
+    } else if (currentX < -DELETE_THRESHOLD) {
+      handleStartDeleteSequence();
+    } else {
+      setCurrentX(0);
+    }
+    setStartX(null);
+  };
+
+  const handleStartDeleteSequence = () => {
+      if (navigator.vibrate) navigator.vibrate(50);
+      setIsConfirmingDelete(true);
+      setCurrentX(0); 
+      deleteTimerRef.current = setTimeout(() => {
+          performFinalDelete();
+      }, 3000);
+  };
+
+  const performFinalDelete = () => {
+      setIsDeleting(true); 
+      setTimeout(() => onDelete(item.id), 300);
+  };
+
+  const handleUndo = () => {
+      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+      setIsConfirmingDelete(false);
+      setCurrentX(0);
+  };
+
+  // Helper to determine background color
+  const getSwipeBackground = () => {
+    if (currentX > 0) return 'bg-indigo-600'; 
+    if (currentX < 0) return 'bg-red-600'; 
+    return 'bg-slate-900';
+  };
+
+  if (isDeleting) {
+      return <div className="h-[72px] mb-3 w-full bg-transparent transition-all duration-300 opacity-0 transform -translate-x-full"></div>;
+  }
+
+  // --- UNDO VIEW ---
+  if (isConfirmingDelete) {
+    return (
+      <div className="relative mb-3 h-[72px] w-full bg-red-950/40 border border-red-900/50 rounded-xl flex items-center justify-between px-6 animate-fade-in overflow-hidden">
+        <div className="absolute bottom-0 left-0 h-1 bg-red-600/50 w-full animate-[shrink_3s_linear_forwards] origin-left" style={{ animationName: 'shrinkWidth' }}></div>
+        <style>{`@keyframes shrinkWidth { from { width: 100%; } to { width: 0%; } }`}</style>
+        <div className="flex items-center gap-2 text-red-400">
+           <Trash2 size={20} />
+           <span className="font-medium text-sm">Eliminato</span>
+        </div>
+        <button onClick={handleUndo} className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm border border-slate-700 transition-colors z-10">
+          <RotateCcw size={16} />
+          Annulla
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div 
+      className="relative mb-3 w-full h-[72px] overflow-hidden rounded-xl select-none touch-pan-y"
+      onMouseLeave={handleMouseLeave}
+      onMouseUp={handleMouseUp}
+      style={{ touchAction: 'pan-y' }}
+      onClick={() => {
+        if (!isDragging && !isDeleting && !isConfirmingDelete) {
+          onToggle(item.id);
+        }
+      }}
+    >
+      {/* Background Layer (Actions) */}
+      <div className={`absolute inset-0 flex items-center justify-between px-6 transition-colors ${getSwipeBackground()}`}>
+        <div className="flex items-center gap-2 text-white font-bold transition-opacity duration-200" style={{ opacity: currentX > 30 ? 1 : 0 }}>
+          <Edit2 size={24} />
+          <span>Modifica</span>
+        </div>
+        <div className="flex items-center gap-2 text-white font-bold transition-opacity duration-200" style={{ opacity: currentX < -30 ? 1 : 0 }}>
+          <span>Elimina</span>
+          <Trash2 size={24} />
+        </div>
+      </div>
+
+      {/* Foreground Layer (Content) */}
+      <div 
+        className={`relative h-full bg-slate-900 flex items-center justify-between p-4 border border-slate-800 rounded-xl transition-transform ease-out ${item.completed ? 'opacity-50' : ''}`}
+        style={{ 
+          transform: `translateX(${currentX}px)`,
+          transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)' 
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseDown}
+      >
+        <div className="flex items-center gap-4 pointer-events-none">
+          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${item.completed ? 'bg-emerald-600 border-emerald-600' : 'border-slate-500'}`}>
+            {item.completed && <Check size={14} className="text-white" strokeWidth={3} />}
+          </div>
+          <div className="flex flex-col">
+            <span className={`font-medium ${item.completed ? 'text-slate-500 line-through' : 'text-slate-200'}`}>
+              {item.name}
+            </span>
+            <span className="text-[10px] text-slate-500 uppercase tracking-wide">{item.category}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
 // --- COMPONENT: TaskItem ---
 interface TaskItemProps {
   task: Task;
@@ -532,13 +744,13 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle, onDelete }) => {
   };
 
   if (isDeleting) {
-      return <div className="min-h-[72px] mb-3 w-full bg-transparent transition-all duration-300 opacity-0 transform -translate-x-full"></div>;
+      return <div className="h-[88px] mb-3 w-full bg-transparent transition-all duration-300 opacity-0 transform -translate-x-full"></div>;
   }
 
   // Undo View
   if (isConfirmingDelete) {
     return (
-      <div className="relative mb-3 min-h-[72px] w-full bg-red-950/40 border border-red-900/50 rounded-xl flex items-center justify-between px-6 animate-fade-in overflow-hidden">
+      <div className="relative mb-3 h-[88px] w-full bg-red-950/40 border border-red-900/50 rounded-xl flex items-center justify-between px-6 animate-fade-in overflow-hidden">
         <div className="absolute bottom-0 left-0 h-1 bg-red-600/50 w-full animate-[shrink_3s_linear_forwards] origin-left" style={{ animationName: 'shrinkWidth' }}></div>
         <style>{`@keyframes shrinkWidth { from { width: 100%; } to { width: 0%; } }`}</style>
 
@@ -557,10 +769,11 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle, onDelete }) => {
 
   return (
     <div 
-      className="relative mb-3 w-full min-h-[72px] overflow-hidden rounded-xl select-none touch-pan-y"
+      className="relative mb-3 w-full h-[88px] overflow-hidden rounded-xl select-none touch-pan-y"
       onMouseLeave={handleMouseLeave}
       onMouseUp={handleMouseUp}
       style={{ touchAction: 'pan-y' }}
+      onClick={() => { if (!isDragging && !isDeleting && !isConfirmingDelete) onToggle(task.id); }}
     >
       {/* Background Layer (Delete only) */}
       <div className={`absolute inset-0 flex items-center justify-end px-6 transition-colors ${currentX < 0 ? 'bg-red-600' : 'bg-slate-900'}`}>
@@ -581,14 +794,11 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle, onDelete }) => {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
+        onMouseMove={handleMouseDown}
       >
-        <button 
-          onClick={(e) => { e.stopPropagation(); onToggle(task.id); }}
-          className={`min-w-[24px] h-6 rounded-md border flex items-center justify-center transition-all z-10 ${task.completed ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-600 hover:border-indigo-500'}`}
-        >
-          {task.completed && <Check size={16} strokeWidth={3} />}
-        </button>
+        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors pointer-events-none ${task.completed ? 'bg-indigo-600 border-indigo-600' : 'border-slate-500'}`}>
+            {task.completed && <Check size={14} className="text-white" strokeWidth={3} />}
+        </div>
         
         <span className={`flex-1 font-medium pointer-events-none transition-all ${task.completed ? 'text-slate-600 line-through' : 'text-slate-200'}`}>
           {task.text}
@@ -597,6 +807,103 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle, onDelete }) => {
     </div>
   );
 };
+
+// --- COMPONENT: ShoppingModal ---
+interface ShoppingModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (name: string, category: string, id?: string) => void;
+  initialData?: ShoppingItem | null;
+  categories: string[];
+}
+
+const ShoppingModal: React.FC<ShoppingModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  onSave, 
+  initialData,
+  categories
+}) => {
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        setName(initialData.name);
+        setCategory(initialData.category);
+      } else {
+        setName('');
+        setCategory(categories[0] || '');
+      }
+    }
+  }, [isOpen, initialData, categories]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onSave(name, category, initialData?.id);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-800 overflow-hidden animate-slide-up">
+        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900">
+          <h2 className="text-lg font-bold text-slate-100">
+            {initialData ? 'Modifica Prodotto' : 'Nuovo Prodotto'}
+          </h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-200 transition-colors">
+            <X size={24} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Nome Prodotto</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Es. Latte, Pane, Uova..."
+              className="w-full text-xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 bg-transparent transition-colors"
+              autoFocus={!initialData}
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-2">Categoria</label>
+            <div className="flex flex-wrap gap-2">
+              {categories.map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategory(cat)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                    category === cat 
+                      ? 'bg-indigo-600 text-white border-indigo-600' 
+                      : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-indigo-500 hover:text-slate-200'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-indigo-900/20 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center gap-2"
+          >
+            {initialData ? <Save size={20} /> : <Check size={20} />} 
+            {initialData ? 'Aggiorna' : 'Aggiungi'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 
 // --- COMPONENT: AddModal ---
 interface AddModalProps {
@@ -893,6 +1200,16 @@ function App() {
   });
   const [newTaskText, setNewTaskText] = useState('');
 
+  // State Shopping List
+  const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>(() => {
+    const saved = localStorage.getItem('spesesmart_shopping');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [shoppingCategories, setShoppingCategories] = useState<string[]>(DEFAULT_SHOPPING_CATEGORIES);
+  const [isShoppingModalOpen, setIsShoppingModalOpen] = useState(false);
+  const [editingShoppingItem, setEditingShoppingItem] = useState<ShoppingItem | null>(null);
+  const [selectedShoppingCategory, setSelectedShoppingCategory] = useState('Tutte');
+
   // State Categories
   const [expenseCategories, setExpenseCategories] = useState<string[]>(() => {
     const saved = localStorage.getItem('spesesmart_expense_categories');
@@ -906,7 +1223,7 @@ function App() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'reports' | 'doit'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'reports' | 'doit' | 'shopping'>('home');
   const [currentDate, setCurrentDate] = useState(new Date());
   
   // Filter State
@@ -927,6 +1244,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('spesesmart_tasks', JSON.stringify(tasks));
   }, [tasks]);
+
+  useEffect(() => {
+    localStorage.setItem('spesesmart_shopping', JSON.stringify(shoppingItems));
+  }, [shoppingItems]);
 
   useEffect(() => {
     localStorage.setItem('spesesmart_expense_categories', JSON.stringify(expenseCategories));
@@ -958,6 +1279,21 @@ function App() {
     const categories = new Set([...expenseCategories, ...incomeCategories]);
     return ['Tutte', ...Array.from(categories).sort()];
   }, [expenseCategories, incomeCategories]);
+
+  // Shopping List Filter
+  const displayedShoppingItems = useMemo(() => {
+    let items = shoppingItems;
+    if (selectedShoppingCategory !== 'Tutte') {
+      items = items.filter(i => i.category === selectedShoppingCategory);
+    }
+    // Sort: Uncompleted first, then completed
+    return items.sort((a, b) => (a.completed === b.completed ? 0 : a.completed ? 1 : -1));
+  }, [shoppingItems, selectedShoppingCategory]);
+
+  const allShoppingCategories = useMemo(() => {
+    return ['Tutte', ...shoppingCategories];
+  }, [shoppingCategories]);
+
 
   // Stats are always calculated on the full month data, regardless of visual filter
   const stats: MonthlyStats = useMemo(() => {
@@ -1090,6 +1426,43 @@ function App() {
     setTasks(prev => prev.filter(t => t.id !== id));
   };
 
+  // --- Shopping Handlers ---
+  const handleSaveShoppingItem = (name: string, category: string, id?: string) => {
+    if (id) {
+       setShoppingItems(prev => prev.map(i => 
+         i.id === id ? { ...i, name, category } : i
+       ));
+    } else {
+      const newItem: ShoppingItem = {
+        id: crypto.randomUUID(),
+        name,
+        category,
+        completed: false
+      };
+      setShoppingItems(prev => [newItem, ...prev]);
+    }
+  };
+
+  const handleToggleShoppingItem = (id: string) => {
+    setShoppingItems(prev => prev.map(i => 
+      i.id === id ? { ...i, completed: !i.completed } : i
+    ));
+  };
+
+  const handleDeleteShoppingItem = (id: string) => {
+    setShoppingItems(prev => prev.filter(i => i.id !== id));
+  };
+
+  const handleEditShoppingItem = (item: ShoppingItem) => {
+    setEditingShoppingItem(item);
+    setIsShoppingModalOpen(true);
+  };
+
+  const handleOpenShoppingModal = () => {
+    setEditingShoppingItem(null);
+    setIsShoppingModalOpen(true);
+  };
+
 
   // Custom Active Shape for Pie Chart
   const renderActiveShape = (props: any) => {
@@ -1180,7 +1553,7 @@ function App() {
 
       <main className="p-4 sm:p-6 space-y-6">
         
-        {activeTab !== 'doit' && (
+        {activeTab === 'home' && (
           <>
             {/* Stats Row */}
             <div className="flex gap-3">
@@ -1327,6 +1700,66 @@ function App() {
           </div>
         )}
 
+        {activeTab === 'shopping' && (
+           <div className="space-y-6 animate-fade-in">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-slate-100">Lista Spesa</h2>
+                <span className="text-xs text-indigo-400 font-bold bg-indigo-950/30 border border-indigo-900/50 px-3 py-1 rounded-full">
+                  {shoppingItems.filter(i => i.completed).length}/{shoppingItems.length} Presi
+                </span>
+              </div>
+
+               {/* Shopping Category Filter */}
+               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+                  <div className="flex items-center justify-center min-w-[32px] h-8 rounded-full bg-slate-900 border border-slate-800 text-slate-500">
+                    <Filter size={14} />
+                  </div>
+                  {allShoppingCategories.map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedShoppingCategory(cat)}
+                      className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                        selectedShoppingCategory === cat 
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/30' 
+                          : 'bg-slate-900 text-slate-400 border border-slate-800 hover:border-slate-600'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+               </div>
+
+              {/* Shopping List */}
+              <div className="space-y-0">
+                  {shoppingItems.length > 0 ? (
+                    <>
+                      <div className="flex items-center gap-2 mb-2 px-2">
+                        <Info size={12} className="text-slate-600" />
+                        <span className="text-[10px] text-slate-600 uppercase tracking-wider">Tocca per spuntare • Scorri: SX Elimina / DX Modifica</span>
+                      </div>
+                      {displayedShoppingItems.map(item => (
+                        <ShoppingListItem
+                          key={item.id}
+                          item={item}
+                          onToggle={handleToggleShoppingItem}
+                          onDelete={handleDeleteShoppingItem}
+                          onEdit={handleEditShoppingItem}
+                        />
+                      ))}
+                    </>
+                  ) : (
+                     <div className="text-center py-20 opacity-50 flex flex-col items-center">
+                      <div className="bg-slate-900 border border-slate-800 w-20 h-20 rounded-full flex items-center justify-center mb-4">
+                        <ShoppingCart size={32} className="text-slate-600" />
+                      </div>
+                      <p className="text-slate-400">Lista della spesa vuota.</p>
+                      <p className="text-xs text-slate-600 mt-2">Usa il tasto + per aggiungere prodotti.</p>
+                   </div>
+                  )}
+              </div>
+           </div>
+        )}
+
         {activeTab === 'reports' && (
           <div className="space-y-6 animate-fade-in">
             {/* Charts Section */}
@@ -1341,8 +1774,6 @@ function App() {
                   <ResponsiveContainer width="100%" height="100%">
                     <RePieChart>
                       <Pie
-                        activeIndex={activeIndex}
-                        activeShape={renderActiveShape}
                         data={categoryData}
                         cx="50%"
                         cy="50%"
@@ -1356,6 +1787,7 @@ function App() {
                         animationBegin={0}
                         animationDuration={800}
                         animationEasing="ease-out"
+                        {...{ activeIndex, activeShape: renderActiveShape } as any}
                       >
                         {categoryData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -1452,13 +1884,13 @@ function App() {
 
       </main>
 
-      {/* Floating Action Button for Desktop/Mobile hybrid feeling */}
+      {/* Floating Action Button */}
       {/* Hide on 'doit' tab because tasks are added inline */}
       {activeTab !== 'doit' && (
         <button
-          onClick={handleOpenAddModal}
+          onClick={activeTab === 'shopping' ? handleOpenShoppingModal : handleOpenAddModal}
           className="fixed bottom-24 right-4 sm:right-[calc(50%-240px+1rem)] bg-indigo-600 text-white p-4 rounded-full shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 active:scale-90 transition-all z-20"
-          aria-label="Aggiungi Transazione"
+          aria-label="Aggiungi"
         >
           <Plus size={28} />
         </button>
@@ -1475,31 +1907,48 @@ function App() {
         onAddCategory={handleAddCategory}
       />
 
+      {/* Shopping Modal */}
+      <ShoppingModal
+        isOpen={isShoppingModalOpen}
+        onClose={() => setIsShoppingModalOpen(false)}
+        onSave={handleSaveShoppingItem}
+        initialData={editingShoppingItem}
+        categories={shoppingCategories}
+      />
+
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 pb-safe pt-2 px-6 h-20 sm:max-w-lg sm:mx-auto z-20">
-        <div className="flex justify-between items-center h-full pb-2 px-4">
+        <div className="flex justify-between items-center h-full pb-2 px-2">
           <button 
             onClick={() => setActiveTab('home')}
-            className={`flex flex-col items-center gap-1 transition-colors w-16 ${activeTab === 'home' ? 'text-indigo-400' : 'text-slate-600 hover:text-slate-400'}`}
+            className={`flex flex-col items-center gap-1 transition-colors w-14 ${activeTab === 'home' ? 'text-indigo-400' : 'text-slate-600 hover:text-slate-400'}`}
           >
-            <Wallet size={24} />
-            <span className="text-[10px] font-medium">Home</span>
+            <Wallet size={20} />
+            <span className="text-[9px] font-medium">Home</span>
           </button>
           
           <button 
-            onClick={() => setActiveTab('doit')}
-            className={`flex flex-col items-center gap-1 transition-colors w-16 ${activeTab === 'doit' ? 'text-indigo-400' : 'text-slate-600 hover:text-slate-400'}`}
+            onClick={() => setActiveTab('shopping')}
+            className={`flex flex-col items-center gap-1 transition-colors w-14 ${activeTab === 'shopping' ? 'text-indigo-400' : 'text-slate-600 hover:text-slate-400'}`}
           >
-            <ListTodo size={24} />
-            <span className="text-[10px] font-medium">Do It</span>
+            <ShoppingCart size={20} />
+            <span className="text-[9px] font-medium">Spesa</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('doit')}
+            className={`flex flex-col items-center gap-1 transition-colors w-14 ${activeTab === 'doit' ? 'text-indigo-400' : 'text-slate-600 hover:text-slate-400'}`}
+          >
+            <ListTodo size={20} />
+            <span className="text-[9px] font-medium">Do It</span>
           </button>
 
           <button 
             onClick={() => setActiveTab('reports')}
-            className={`flex flex-col items-center gap-1 transition-colors w-16 ${activeTab === 'reports' ? 'text-indigo-400' : 'text-slate-600 hover:text-slate-400'}`}
+            className={`flex flex-col items-center gap-1 transition-colors w-14 ${activeTab === 'reports' ? 'text-indigo-400' : 'text-slate-600 hover:text-slate-400'}`}
           >
-            <BarChart3 size={24} />
-            <span className="text-[10px] font-medium">Report</span>
+            <BarChart3 size={20} />
+            <span className="text-[9px] font-medium">Report</span>
           </button>
         </div>
       </nav>
@@ -1507,15 +1956,5 @@ function App() {
   );
 }
 
-// --- RENDER ---
-const rootElement = document.getElementById('root');
-if (!rootElement) {
-  throw new Error("Could not find root element to mount to");
-}
-
-const root = ReactDOM.createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+const root = createRoot(document.getElementById('root')!);
+root.render(<App />);
