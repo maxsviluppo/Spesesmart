@@ -43,7 +43,11 @@ import {
   LogOut,
   AlertTriangle,
   Cloud,
-  LogIn
+  LogIn,
+  Key,
+  ExternalLink,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -104,6 +108,7 @@ export interface UserSettings {
   userName: string;
   soundEnabled: boolean;
   hapticEnabled: boolean;
+  apiKey?: string; // Optional API Key for Gemini
 }
 
 export const DEFAULT_EXPENSE_CATEGORIES = [
@@ -169,17 +174,20 @@ const playNotificationSound = (enabled: boolean = true) => {
 };
 
 // --- GEMINI SERVICE ---
-const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '';
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+// Now accepts the API Key dynamically
+export const getFinancialAdvice = async (transactions: Transaction[], month: string, userApiKey?: string) => {
+  // Use user provided key first, fallback to env (if any)
+  const activeKey = userApiKey || ((typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '');
 
-export const getFinancialAdvice = async (transactions: Transaction[], month: string) => {
-  if (!ai) {
-    return "API Key mancante. Configura le variabili d'ambiente per usare l'AI.";
+  if (!activeKey) {
+    return "Chiave API mancante. Vai nelle Impostazioni (ingranaggio in alto) e inserisci la tua Google Gemini API Key per abilitare questa funzione.";
   }
 
   if (transactions.length === 0) {
     return "Non ci sono abbastanza dati per generare un'analisi questo mese. Aggiungi alcune spese!";
   }
+
+  const ai = new GoogleGenAI({ apiKey: activeKey });
 
   const summary = transactions.map(t => 
     `- ${t.date.split('T')[0]}: ${t.type === 'expense' ? 'Spesa' : 'Entrata'} di €${t.amount} per ${t.description} (${t.category}). Note: ${t.note || 'nessuna'}`
@@ -207,8 +215,11 @@ export const getFinancialAdvice = async (transactions: Transaction[], month: str
       contents: prompt,
     });
     return response.text || "Impossibile generare l'analisi al momento.";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini Error:", error);
+    if (error.message?.includes('403') || error.message?.includes('API key')) {
+      return "Errore chiave API: La chiave inserita non è valida o è scaduta. Controlla le impostazioni.";
+    }
     return "Si è verificato un errore durante l'analisi dei dati. Riprova più tardi.";
   }
 };
@@ -551,11 +562,14 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onUpdateSettings, onReset }) => {
   const [localName, setLocalName] = useState(settings.userName);
+  const [localApiKey, setLocalApiKey] = useState(settings.apiKey || '');
+  const [showApiKey, setShowApiKey] = useState(false);
   const [resetStep, setResetStep] = useState(0);
 
   useEffect(() => {
     if (isOpen) {
       setLocalName(settings.userName);
+      setLocalApiKey(settings.apiKey || '');
       setResetStep(0);
     }
   }, [isOpen, settings]);
@@ -563,14 +577,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
   if (!isOpen) return null;
 
   const handleSave = () => {
-    onUpdateSettings({ ...settings, userName: localName });
+    onUpdateSettings({ 
+      ...settings, 
+      userName: localName,
+      apiKey: localApiKey.trim() 
+    });
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-800 overflow-hidden animate-slide-up">
-        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900">
+      <div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-800 overflow-hidden animate-slide-up max-h-[90vh] overflow-y-auto no-scrollbar">
+        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900 sticky top-0 z-10">
           <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
             <Settings size={20} className="text-slate-400" /> Impostazioni
           </h2>
@@ -604,6 +622,45 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
               placeholder="Il tuo nome"
               className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-200 outline-none focus:border-indigo-500 transition-all"
             />
+          </div>
+
+          {/* AI Settings Section */}
+          <div className="space-y-3 pb-4 border-b border-slate-800">
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+              <Sparkles size={14} /> Intelligenza Artificiale
+            </label>
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Per generare report intelligenti, SpeseSmart utilizza Google Gemini. Inserisci la tua chiave API personale qui sotto.
+              </p>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                  <Key size={16} />
+                </div>
+                <input 
+                  type={showApiKey ? "text" : "password"}
+                  value={localApiKey}
+                  onChange={(e) => setLocalApiKey(e.target.value)}
+                  placeholder="Incolla la tua API Key qui"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg py-3 pl-10 pr-10 text-sm text-slate-200 outline-none focus:border-indigo-500 transition-all placeholder-slate-600 font-mono"
+                />
+                <button 
+                  type="button"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300"
+                >
+                  {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              <a 
+                href="https://aistudio.google.com/app/apikey" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors font-medium"
+              >
+                Ottieni una chiave gratuita su Google AI Studio <ExternalLink size={10} />
+              </a>
+            </div>
           </div>
 
           {/* Preferences Section */}
@@ -783,7 +840,8 @@ function App() {
   // State Settings
   const [userSettings, setUserSettings] = useState<UserSettings>(() => {
     const saved = localStorage.getItem('spesesmart_settings');
-    return saved ? JSON.parse(saved) : { userName: '', soundEnabled: true, hapticEnabled: true };
+    // Default includes empty apiKey
+    return saved ? JSON.parse(saved) : { userName: '', soundEnabled: true, hapticEnabled: true, apiKey: '' };
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -1019,7 +1077,8 @@ function App() {
   const handleAiAnalysis = async () => {
     setLoadingAi(true);
     const monthName = currentDate.toLocaleString('it-IT', { month: 'long', year: 'numeric' });
-    const advice = await getFinancialAdvice(monthlyTransactions, monthName);
+    // Pass the user's API Key to the service
+    const advice = await getFinancialAdvice(monthlyTransactions, monthName, userSettings.apiKey);
     setAiAdvice(advice); setLoadingAi(false);
   };
   const onPieEnter = (_: any, index: number) => setActiveIndex(index);
