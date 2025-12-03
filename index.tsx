@@ -280,7 +280,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
+        onMouseMove={handleMouseDown}
       >
         <div className="flex items-center gap-3 pointer-events-none">
           <div className={`p-2 rounded-full ${isExpense ? 'bg-red-950/30 text-red-400' : 'bg-emerald-950/30 text-emerald-400'}`}>
@@ -744,31 +744,36 @@ function App() {
     const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload, value } = props;
     return (
       <g>
-        <text x={cx} y={cy - 10} dy={8} textAnchor="middle" fill="#94a3b8" className="text-[10px] uppercase font-bold tracking-wider">
+        <text x={cx} y={cy - 12} dy={8} textAnchor="middle" fill="#94a3b8" className="text-[10px] uppercase font-bold tracking-widest animate-fade-in">
           {payload.name.length > 12 ? payload.name.substring(0, 10) + '..' : payload.name}
         </text>
-        <text x={cx} y={cy + 12} dy={8} textAnchor="middle" fill="#f8fafc" className="text-lg font-bold">
+        <text x={cx} y={cy + 12} dy={8} textAnchor="middle" fill="#f8fafc" className="text-xl font-black animate-fade-in">
           €{value.toLocaleString()}
         </text>
         <Sector
           cx={cx}
           cy={cy}
           innerRadius={innerRadius}
-          outerRadius={outerRadius + 8}
+          outerRadius={outerRadius + 12} // Increased pop
           startAngle={startAngle}
           endAngle={endAngle}
           fill={fill}
-          className="drop-shadow-lg"
+          stroke="#020617" // Slate-950 background color to create separation
+          strokeWidth={4}
+          cornerRadius={6} // Rounded edges for the sector
+          className="transition-all duration-300 ease-out"
+          style={{ filter: `drop-shadow(0px 0px 6px ${fill}80)` }} // Colored glow matching the slice
         />
         <Sector
           cx={cx}
           cy={cy}
           startAngle={startAngle}
           endAngle={endAngle}
-          innerRadius={outerRadius + 12}
-          outerRadius={outerRadius + 13}
+          innerRadius={outerRadius + 18}
+          outerRadius={outerRadius + 20}
           fill={fill}
-          opacity={0.3}
+          cornerRadius={10}
+          opacity={0.4}
         />
       </g>
     );
@@ -931,6 +936,10 @@ function App() {
                         dataKey="value"
                         stroke="none"
                         onMouseEnter={onPieEnter}
+                        isAnimationActive={true}
+                        animationBegin={0}
+                        animationDuration={800}
+                        animationEasing="ease-out"
                       >
                         {categoryData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
