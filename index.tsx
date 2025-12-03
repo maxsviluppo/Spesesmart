@@ -5,7 +5,7 @@ import {
   Wallet, PieChart as PieChartIcon, ArrowRight, Sparkles, CheckCircle2, Circle, Trash2, AlertTriangle, Info,
   ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut, Calendar, Clock, User, Key, Lock, ExternalLink, ChevronDown, ChevronUp, Mail,
   Sun, Cloud, CloudRain, CloudSnow, CloudLightning, MapPin, Droplets, ThermometerSun, Smartphone, Layout, Volume2, Eye, EyeOff, History,
-  Flag
+  Flag, XCircle
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
@@ -69,10 +69,17 @@ export interface WeatherData {
 const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
 
 // --- SERVICES ---
-// Initialization of GenAI client with environment variable as per guidelines
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const getFinancialAdvice = async (transactions: Transaction[], month: string) => {
+  // Get key from storage dynamically
+  const apiKey = localStorage.getItem('geminiApiKey') || '';
+  
+  if (!apiKey) {
+    return "API Key mancante. Vai nelle impostazioni e inserisci la tua chiave Gemini per ricevere consigli.";
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+
   if (transactions.length === 0) return "Non ci sono abbastanza dati per generare un'analisi completa.";
 
   const summary = transactions.map(t => 
@@ -97,7 +104,7 @@ const getFinancialAdvice = async (transactions: Transaction[], month: string) =>
     return response.text || "Analisi non disponibile.";
   } catch (error) {
     console.error(error);
-    return "Errore AI. Riprova più tardi.";
+    return "Errore AI. Verifica la tua API Key nelle impostazioni.";
   }
 };
 
@@ -192,50 +199,42 @@ const WeatherWidget = () => {
   );
 };
 
-// Voice Input Component
+// Voice Input Component (Fixed)
 const VoiceInput = ({ onResult }: { onResult: (text: string) => void }) => {
   const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef<any>(null);
-
+  
   const startListening = () => {
-    if (!('webkitSpeechRecognition' in window)) {
+    // Check support
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
       alert("Il tuo browser non supporta la dettatura vocale.");
       return;
     }
 
-    if (recognitionRef.current) {
-        recognitionRef.current.stop();
-    }
-
-    const recognition = new (window as any).webkitSpeechRecognition();
-    recognitionRef.current = recognition;
-    
+    const recognition = new SpeechRecognition();
     recognition.lang = 'it-IT';
     recognition.continuous = false;
     recognition.interimResults = false;
 
-    recognition.onstart = () => setIsListening(true);
-    
-    recognition.onend = () => {
-        setIsListening(false);
+    recognition.onstart = () => {
+        setIsListening(true);
     };
 
     recognition.onresult = (event: any) => {
-      if (event.results && event.results[0] && event.results[0][0]) {
-        const transcript = event.results[0][0].transcript;
-        onResult(transcript);
+      const transcript = event.results[0][0].transcript;
+      if (transcript) {
+          onResult(transcript);
       }
-      recognition.stop();
       setIsListening(false);
     };
 
-    // Stop automatically when user stops speaking to release system
-    recognition.onspeechend = () => {
-       recognition.stop();
+    recognition.onerror = (event: any) => {
+        console.error("Speech error", event.error);
+        setIsListening(false);
     };
 
-    recognition.onerror = (event: any) => {
-        console.error("Speech recognition error", event.error);
+    recognition.onend = () => {
         setIsListening(false);
     };
 
@@ -498,7 +497,27 @@ const AddModal = ({ isOpen, onClose, onSave, initialData, expenseCategories, inc
 };
 
 // Settings Modal
-const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, notificationsEnabled, setNotificationsEnabled, startUpTab, setStartUpTab, onSaveSettings, alarmVolume, setAlarmVolume, onTestSound }: any) => {
+const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, notificationsEnabled, setNotificationsEnabled, startUpTab, setStartUpTab, onSaveSettings, alarmVolume, setAlarmVolume, onTestSound, apiKey, setApiKey }: any) => {
+  const [isCheckingKey, setIsCheckingKey] = useState(false);
+  const [keyStatus, setKeyStatus] = useState<'idle'|'valid'|'invalid'>('idle');
+
+  const checkKey = async () => {
+    setIsCheckingKey(true);
+    try {
+        const ai = new GoogleGenAI({ apiKey });
+        const res = await ai.models.generateContent({
+             model: 'gemini-2.5-flash',
+             contents: "Test connection",
+        });
+        if(res) setKeyStatus('valid');
+    } catch(e) {
+        console.error(e);
+        setKeyStatus('invalid');
+    } finally {
+        setIsCheckingKey(false);
+    }
+  };
+
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
@@ -568,6 +587,34 @@ const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, no
              </div>
           </div>
 
+          {/* AI CONFIG */}
+          <div className="space-y-3">
+              <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Key size={14}/> Gemini AI</h3>
+              <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-3">
+                  <div className="relative">
+                      <input 
+                        type="password" 
+                        value={apiKey} 
+                        onChange={(e) => { setApiKey(e.target.value); setKeyStatus('idle'); }}
+                        placeholder="Incolla qui la tua API Key"
+                        className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-indigo-500 pr-8"
+                      />
+                      {keyStatus === 'valid' && <CheckCircle2 size={16} className="absolute right-2 top-2 text-emerald-500"/>}
+                      {keyStatus === 'invalid' && <XCircle size={16} className="absolute right-2 top-2 text-red-500"/>}
+                  </div>
+                  <div className="flex justify-between items-center">
+                      <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[10px] text-indigo-400 hover:underline flex items-center gap-1"><ExternalLink size={10}/> Ottieni Key</a>
+                      <button 
+                        onClick={checkKey} 
+                        disabled={isCheckingKey || !apiKey}
+                        className="text-[10px] bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-500 disabled:opacity-50"
+                      >
+                          {isCheckingKey ? 'Verifica...' : 'Verifica Key'}
+                      </button>
+                  </div>
+              </div>
+          </div>
+
           {/* PROFILO */}
           <div className="space-y-3">
              <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><User size={14}/> Profilo</h3>
@@ -631,6 +678,9 @@ const App = () => {
   
   // Balance Visibility
   const [isBalanceHidden, setIsBalanceHidden] = useState(() => localStorage.getItem('isBalanceHidden') === 'true');
+
+  // API Key
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('geminiApiKey') || '');
 
   // History Modals
   const [historyType, setHistoryType] = useState<'income'|'expense'|null>(null);
@@ -714,6 +764,7 @@ const App = () => {
   useEffect(() => { localStorage.setItem('userName', userName); }, [userName]);
   useEffect(() => { localStorage.setItem('alarmVolume', alarmVolume.toString()); }, [alarmVolume]);
   useEffect(() => { localStorage.setItem('isBalanceHidden', String(isBalanceHidden)); }, [isBalanceHidden]);
+  useEffect(() => { localStorage.setItem('geminiApiKey', apiKey); }, [apiKey]);
 
   const handleSaveSettings = () => {
     localStorage.setItem('startUpTab', startUpTab);
@@ -882,6 +933,18 @@ const App = () => {
   const toggleAlertComplete = (id: string) => {
      setManualAlerts(p => p.map(a => a.id === id ? { ...a, completed: !a.completed } : a));
   };
+  
+  // Helper for alert urgency color
+  const getAlertStyle = (date: string, time: string) => {
+      const now = new Date();
+      const due = new Date(`${date}T${time}`);
+      const diffHours = (due.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+      if (diffHours < 0) return 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]'; // Overdue (Red Neon)
+      if (diffHours < 24) return 'border-orange-400'; // < 24h (Yellow/Orange)
+      if (diffHours < 72) return 'border-emerald-400'; // < 3 days (Green)
+      return 'border-indigo-400'; // > 3 days (Blue)
+  };
 
   // Renderers
   const renderContent = () => {
@@ -966,7 +1029,7 @@ const App = () => {
             const timeB = new Date(`${b.date}T${b.time}`).getTime();
             const valA = isNaN(timeA) ? 0 : timeA;
             const valB = isNaN(timeB) ? 0 : timeB;
-            return valA - valB;
+            return Number(valA) - Number(valB);
         });
         
         return (
@@ -995,43 +1058,31 @@ const App = () => {
            
            {/* COLLAPSIBLE ADD FORM */}
            {isAddingAlert && (
-             <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 mb-4 animate-slide-up space-y-4">
-                 <div className="flex gap-2 items-center">
-                    <input value={newAlertMsg} onChange={e => setNewAlertMsg(e.target.value)} placeholder="Messaggio avviso..." className="flex-1 bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-lg px-4 py-3 text-white outline-none placeholder-slate-600 text-sm transition-colors"/>
+             <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 mb-4 animate-slide-up space-y-5 shadow-xl relative overflow-hidden">
+                 {/* Decorative top border */}
+                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500"></div>
+
+                 <div className="flex gap-3 items-center">
+                    <div className="flex-1 relative">
+                        <input value={newAlertMsg} onChange={e => setNewAlertMsg(e.target.value)} placeholder="Messaggio avviso..." className="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 rounded-xl pl-4 pr-10 py-3 text-white outline-none placeholder-slate-600 text-sm transition-colors"/>
+                    </div>
                     <VoiceInput onResult={setNewAlertMsg} />
                  </div>
                  
-                 <div className="flex flex-col gap-3 w-full items-center">
-                    <div className="w-full relative">
-                        <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 flex items-center gap-1"><Calendar size={12} className="text-cyan-400"/> Data</label>
-                        <input type="date" value={newAlertDate} onChange={e => setNewAlertDate(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-sm text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500 appearance-none"/>
-                    </div>
-                    <div className="w-full relative">
-                        <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 flex items-center gap-1"><Clock size={12} className="text-cyan-400"/> Ora</label>
-                        <input type="time" value={newAlertTime} onChange={e => setNewAlertTime(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-sm text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500 appearance-none"/>
+                 <div className="flex flex-col gap-4">
+                    <div className="flex gap-4">
+                        <div className="flex-1 space-y-1">
+                            <label className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1 ml-1"><Calendar size={12} className="text-cyan-400"/> Data</label>
+                            <input type="date" value={newAlertDate} onChange={e => setNewAlertDate(e.target.value)} className="w-full bg-slate-900 border border-slate-700 text-sm text-white rounded-xl px-3 py-2.5 outline-none focus:border-indigo-500 appearance-none"/>
+                        </div>
+                        <div className="flex-1 space-y-1">
+                            <label className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1 ml-1"><Clock size={12} className="text-purple-400"/> Ora</label>
+                            <input type="time" value={newAlertTime} onChange={e => setNewAlertTime(e.target.value)} className="w-full bg-slate-900 border border-slate-700 text-sm text-white rounded-xl px-3 py-2.5 outline-none focus:border-indigo-500 appearance-none"/>
+                        </div>
                     </div>
                  </div>
 
-                 {/* PRIORITY SELECTOR */}
-                 <div className="flex items-center gap-2 w-full">
-                     <span className="text-[10px] text-slate-500 uppercase font-bold">Priorità:</span>
-                     <div className="flex gap-2 flex-1">
-                         {(['high', 'medium', 'low'] as AlertPriority[]).map(p => (
-                             <button 
-                                key={p} 
-                                onClick={() => setNewAlertPriority(p)}
-                                className={`flex-1 text-[10px] py-1 rounded border capitalize ${newAlertPriority === p 
-                                    ? (p === 'high' ? 'bg-red-900/50 border-red-500 text-red-200' : p === 'medium' ? 'bg-yellow-900/50 border-yellow-500 text-yellow-200' : 'bg-blue-900/50 border-blue-500 text-blue-200')
-                                    : 'bg-slate-950 border-slate-800 text-slate-500'
-                                }`}
-                             >
-                                 {p === 'high' ? 'Alta' : p === 'medium' ? 'Media' : 'Bassa'}
-                             </button>
-                         ))}
-                     </div>
-                 </div>
-
-                 <button onClick={handleSaveAlert} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-indigo-500 flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20">
+                 <button onClick={handleSaveAlert} className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold text-sm hover:bg-indigo-500 flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/30 active:scale-95 transition-all">
                     <Save size={18}/> {editingAlertId ? 'Aggiorna Promemoria' : 'Salva Promemoria'}
                  </button>
              </div>
@@ -1042,8 +1093,8 @@ const App = () => {
              <p className="text-[10px] text-slate-500 text-center mb-2 italic">(Doppio clic per segnare come completato)</p>
              {sortedAlerts.map(a => {
                const isDue = new Date(`${a.date}T${a.time}`) <= new Date();
-               const borderColor = a.priority === 'high' ? 'border-red-500' : a.priority === 'medium' ? 'border-yellow-500' : 'border-blue-500';
-               const neonClass = (isDue && !a.completed) ? 'shadow-[0_0_15px_rgba(239,68,68,0.6)] border-red-500' : borderColor;
+               const urgencyClass = getAlertStyle(a.date, a.time);
+               const finalClass = (isDue && !a.completed) ? 'shadow-[0_0_15px_rgba(239,68,68,0.6)] border-red-500' : urgencyClass;
                
                return (
                <SwipeableItem 
@@ -1054,7 +1105,7 @@ const App = () => {
                    rightIcon={<Edit2 size={24}/>}
                    onDoubleClick={() => toggleAlertComplete(a.id)}
                >
-                 <div className={`bg-slate-900/40 p-4 rounded-xl border-l-4 flex flex-col gap-1 min-h-[70px] transition-all ${a.completed ? 'border-emerald-500 bg-emerald-950/20' : neonClass}`}>
+                 <div className={`bg-slate-900/40 p-4 rounded-xl border-l-4 flex flex-col gap-1 min-h-[70px] transition-all ${a.completed ? 'border-emerald-500 bg-emerald-950/20' : finalClass}`}>
                     <div className="flex justify-between items-start">
                         <div className="flex items-center gap-2">
                             {(isDue && !a.completed) && <Bell size={14} className="text-red-400 animate-pulse" />}
@@ -1066,7 +1117,6 @@ const App = () => {
                     <div className="flex gap-3 text-[10px] text-indigo-300 font-mono mt-1">
                        <span className="flex items-center gap-1"><Calendar size={10}/> {new Date(a.date).toLocaleDateString()}</span>
                        <span className="flex items-center gap-1"><Clock size={10}/> {a.time}</span>
-                       <span className={`capitalize ml-auto ${a.priority === 'high' ? 'text-red-400' : a.priority === 'medium' ? 'text-yellow-400' : 'text-blue-400'}`}>{a.priority}</span>
                     </div>
                  </div>
                </SwipeableItem>
@@ -1207,6 +1257,8 @@ const App = () => {
             alarmVolume={alarmVolume}
             setAlarmVolume={setAlarmVolume}
             onTestSound={() => playAlarmSound(alarmVolume)}
+            apiKey={apiKey}
+            setApiKey={setApiKey}
         />
       </div>
     </div>
