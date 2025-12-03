@@ -815,6 +815,7 @@ interface ShoppingModalProps {
   onSave: (name: string, category: string, id?: string) => void;
   initialData?: ShoppingItem | null;
   categories: string[];
+  onAddCategory: (newCategory: string) => void;
 }
 
 const ShoppingModal: React.FC<ShoppingModalProps> = ({ 
@@ -822,13 +823,22 @@ const ShoppingModal: React.FC<ShoppingModalProps> = ({
   onClose, 
   onSave, 
   initialData,
-  categories
+  categories,
+  onAddCategory
 }) => {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
 
+  // New Category Logic
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const newCategoryInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (isOpen) {
+      setIsAddingCategory(false);
+      setNewCategoryName('');
+
       if (initialData) {
         setName(initialData.name);
         setCategory(initialData.category);
@@ -839,13 +849,40 @@ const ShoppingModal: React.FC<ShoppingModalProps> = ({
     }
   }, [isOpen, initialData, categories]);
 
+  // Focus input when adding category
+  useEffect(() => {
+    if (isAddingCategory && newCategoryInputRef.current) {
+      newCategoryInputRef.current.focus();
+    }
+  }, [isAddingCategory]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onSave(name, category, initialData?.id);
+    onSave(name, category || categories[0], initialData?.id);
     onClose();
+  };
+
+  const handleCreateCategory = () => {
+    if (newCategoryName.trim()) {
+      onAddCategory(newCategoryName.trim());
+      setCategory(newCategoryName.trim()); 
+      setNewCategoryName('');
+      setIsAddingCategory(false);
+    } else {
+      setIsAddingCategory(false);
+    }
+  };
+
+  const handleKeyDownCategory = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleCreateCategory();
+    } else if (e.key === 'Escape') {
+      setIsAddingCategory(false);
+    }
   };
 
   return (
@@ -889,6 +926,30 @@ const ShoppingModal: React.FC<ShoppingModalProps> = ({
                   {cat}
                 </button>
               ))}
+               {/* Add Category Button/Input */}
+               {isAddingCategory ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    ref={newCategoryInputRef}
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    onBlur={handleCreateCategory} // Save on blur
+                    onKeyDown={handleKeyDownCategory}
+                    placeholder="Nuova..."
+                    className="px-3 py-1.5 rounded-full text-xs font-medium border border-indigo-500 bg-slate-800 text-white outline-none w-24 placeholder-slate-500"
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsAddingCategory(true)}
+                  className="px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-slate-600 text-slate-500 hover:border-slate-400 hover:text-slate-300 transition-all flex items-center gap-1"
+                >
+                  <Plus size={12} />
+                  Nuova
+                </button>
+              )}
             </div>
           </div>
           <button
@@ -1205,7 +1266,12 @@ function App() {
     const saved = localStorage.getItem('spesesmart_shopping');
     return saved ? JSON.parse(saved) : [];
   });
-  const [shoppingCategories, setShoppingCategories] = useState<string[]>(DEFAULT_SHOPPING_CATEGORIES);
+  // Shopping Categories with Persistence
+  const [shoppingCategories, setShoppingCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem('spesesmart_shopping_categories');
+    return saved ? JSON.parse(saved) : DEFAULT_SHOPPING_CATEGORIES;
+  });
+
   const [isShoppingModalOpen, setIsShoppingModalOpen] = useState(false);
   const [editingShoppingItem, setEditingShoppingItem] = useState<ShoppingItem | null>(null);
   const [selectedShoppingCategory, setSelectedShoppingCategory] = useState('Tutte');
@@ -1248,6 +1314,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('spesesmart_shopping', JSON.stringify(shoppingItems));
   }, [shoppingItems]);
+
+  useEffect(() => {
+    localStorage.setItem('spesesmart_shopping_categories', JSON.stringify(shoppingCategories));
+  }, [shoppingCategories]);
 
   useEffect(() => {
     localStorage.setItem('spesesmart_expense_categories', JSON.stringify(expenseCategories));
@@ -1443,6 +1513,12 @@ function App() {
     }
   };
 
+  const handleAddShoppingCategory = (newCategory: string) => {
+    if (!shoppingCategories.includes(newCategory)) {
+      setShoppingCategories(prev => [...prev, newCategory]);
+    }
+  };
+
   const handleToggleShoppingItem = (id: string) => {
     setShoppingItems(prev => prev.map(i => 
       i.id === id ? { ...i, completed: !i.completed } : i
@@ -1586,8 +1662,8 @@ function App() {
               </span>
              </div>
 
-             {/* Category Filter Scroll */}
-             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+             {/* Category Filter Scroll - STICKY FIX */}
+             <div className="sticky top-[80px] z-20 bg-slate-950/95 backdrop-blur py-2 flex items-center gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
                 <div className="flex items-center justify-center min-w-[32px] h-8 rounded-full bg-slate-900 border border-slate-800 text-slate-500">
                   <Filter size={14} />
                 </div>
@@ -1914,6 +1990,7 @@ function App() {
         onSave={handleSaveShoppingItem}
         initialData={editingShoppingItem}
         categories={shoppingCategories}
+        onAddCategory={handleAddShoppingCategory}
       />
 
       {/* Bottom Navigation */}
