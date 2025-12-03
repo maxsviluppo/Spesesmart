@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { 
   Plus, Home, ShoppingCart, ListTodo, Bell, BarChart3, 
   Wallet, PieChart, ArrowRight, Sparkles, CheckCircle2, Circle, Trash2, AlertTriangle, Info,
-  ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save
+  ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
@@ -33,38 +34,35 @@ export interface MonthlyStats {
   balance: number;
 }
 
+export interface ListItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
+export interface ManualAlert {
+  id: string;
+  message: string;
+  date: string;
+}
+
 // --- SERVICES ---
-// Safe init: check if env exists (for GitHub Pages compatibility)
 const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '';
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 const getFinancialAdvice = async (transactions: Transaction[], month: string) => {
-  if (!ai) {
-    return "API Key mancante. Configura le variabili d'ambiente per usare l'AI.";
-  }
-
-  if (transactions.length === 0) {
-    return "Non ci sono abbastanza dati per generare un'analisi questo mese. Aggiungi alcune spese!";
-  }
+  if (!ai) return "API Key mancante. Configura le variabili d'ambiente per usare l'AI.";
+  if (transactions.length === 0) return "Non ci sono abbastanza dati per generare un'analisi questo mese.";
 
   const summary = transactions.map(t => 
     `- ${t.date.split('T')[0]}: ${t.type === 'expense' ? 'Spesa' : 'Entrata'} di €${t.amount} per ${t.description} (${t.category})`
   ).join('\n');
 
   const prompt = `
-    Sei un assistente finanziario esperto e amichevole.
-    Analizza le seguenti transazioni per il mese di ${month}.
-    
-    Dati Transazioni:
-    ${summary}
-    
-    Per favore fornisci:
-    1. Un breve riassunto dell'andamento del mese.
-    2. Identifica la categoria dove ho speso di più.
-    3. Un consiglio pratico per risparmiare basato su questi dati.
-    
-    Rispondi in italiano. Mantieni il tono incoraggiante e conciso (massimo 150 parole).
-    Usa formattazione Markdown semplice (grassetto, elenchi).
+    Sei un assistente finanziario. Analizza le transazioni per ${month}.
+    Dati: ${summary}
+    Fornisci: 1. Riassunto breve. 2. Categoria più costosa. 3. Un consiglio flash.
+    Max 100 parole.
   `;
 
   try {
@@ -72,81 +70,72 @@ const getFinancialAdvice = async (transactions: Transaction[], month: string) =>
       model: 'gemini-2.5-flash',
       contents: prompt,
     });
-    return response.text || "Impossibile generare l'analisi al momento.";
+    return response.text || "Analisi non disponibile.";
   } catch (error) {
-    console.error("Gemini Error:", error);
-    return "Si è verificato un errore durante l'analisi dei dati. Riprova più tardi.";
+    return "Errore AI. Riprova più tardi.";
   }
 };
 
 // --- COMPONENTS ---
 
-// StatsCard Component
-interface StatsCardProps {
-  label: string;
-  amount: number;
-  type: 'balance' | 'income' | 'expense';
-}
+// Voice Input Component
+const VoiceInput = ({ onResult }: { onResult: (text: string) => void }) => {
+  const [isListening, setIsListening] = useState(false);
 
-const StatsCard: React.FC<StatsCardProps> = ({ label, amount, type }) => {
-  let colorClass = "text-slate-200";
-  let bgClass = "bg-slate-900";
-  let borderClass = "border-slate-800";
+  const startListening = () => {
+    if (!('webkitSpeechRecognition' in window)) {
+      alert("Il tuo browser non supporta la dettatura vocale.");
+      return;
+    }
+    const recognition = new (window as any).webkitSpeechRecognition();
+    recognition.lang = 'it-IT';
+    recognition.continuous = false;
+    recognition.interimResults = false;
 
-  if (type === 'income') {
-    colorClass = "text-emerald-400";
-    bgClass = "bg-emerald-950/30";
-    borderClass = "border-emerald-900/30";
-  } else if (type === 'expense') {
-    colorClass = "text-red-400";
-    bgClass = "bg-red-950/30";
-    borderClass = "border-red-900/30";
-  } else {
-    colorClass = "text-indigo-400";
-    bgClass = "bg-slate-900";
-  }
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      onResult(transcript);
+    };
+    recognition.start();
+  };
 
   return (
-    <div className={`flex-1 p-4 rounded-2xl border shadow-sm flex flex-col items-center justify-center ${bgClass} ${borderClass}`}>
-      <span className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">{label}</span>
-      <span className={`text-xl sm:text-2xl font-bold truncate max-w-full ${colorClass}`}>
-        {amount.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
-      </span>
-    </div>
+    <button 
+      type="button"
+      onClick={startListening} 
+      className={`p-3 rounded-xl transition-all ${isListening ? 'bg-red-600 text-white animate-pulse' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+    >
+      <Mic size={20} />
+    </button>
   );
 };
 
-// TransactionItem Component
-interface TransactionItemProps {
-  transaction: Transaction;
-  onDelete: (id: string) => void;
-  onEdit: (transaction: Transaction) => void;
-  isFirst?: boolean;
+// Generic Swipeable Item
+interface SwipeableItemProps {
+  children: React.ReactNode;
+  onSwipeLeft: () => void; // Delete
+  onSwipeRight?: () => void; // Edit or Complete
+  rightLabel?: string;
+  rightIcon?: React.ReactNode;
+  rightColor?: string;
+  leftLabel?: string; // Default Delete
 }
 
-const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete, onEdit, isFirst = false }) => {
-  const isExpense = transaction.type === 'expense';
-  
+const SwipeableItem: React.FC<SwipeableItemProps> = ({ 
+  children, onSwipeLeft, onSwipeRight, 
+  rightLabel = "Azione", rightIcon = <Edit2 size={24}/>, rightColor = "bg-indigo-600",
+  leftLabel = "Elimina"
+}) => {
   const [startX, setStartX] = useState<number | null>(null);
   const [currentX, setCurrentX] = useState<number>(0);
   const [isDragging, setIsDragging] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const itemRef = useRef<HTMLDivElement>(null);
-
-  const SWIPE_THRESHOLD = 70; 
-  const DELETE_THRESHOLD = 150; 
+  
+  const SWIPE_THRESHOLD = 70;
+  const DELETE_THRESHOLD = 150;
   const MAX_SWIPE_RIGHT = 100;
-
-  useEffect(() => {
-    if (!isFirst || isDeleting) return;
-    const interval = setInterval(() => {
-      if (isDragging || isDeleting) return; 
-      setCurrentX(-40);
-      setTimeout(() => { if (!isDragging && !isDeleting) setCurrentX(40); }, 400);
-      setTimeout(() => { if (!isDragging && !isDeleting) setCurrentX(0); }, 800);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [isFirst, isDragging, isDeleting]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setStartX(e.touches[0].clientX);
@@ -158,6 +147,9 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
     const x = e.touches[0].clientX;
     const diff = x - startX;
     
+    // Allow right swipe only if handler exists
+    if (diff > 0 && !onSwipeRight) return;
+
     if (diff > MAX_SWIPE_RIGHT) {
         setCurrentX(MAX_SWIPE_RIGHT + (diff - MAX_SWIPE_RIGHT) * 0.2);
     } else {
@@ -165,631 +157,394 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
     }
   };
 
-  const handleTouchEnd = () => handleSwipeEnd();
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setStartX(e.clientX);
-    setIsDragging(true);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || startX === null || isDeleting) return;
-    e.preventDefault(); 
-    const x = e.clientX;
-    const diff = x - startX;
-    if (diff > MAX_SWIPE_RIGHT) {
-         setCurrentX(MAX_SWIPE_RIGHT + (diff - MAX_SWIPE_RIGHT) * 0.2);
-    } else {
-         setCurrentX(diff);
-    }
-  };
-
-  const handleMouseUp = () => handleSwipeEnd();
-  const handleMouseLeave = () => { if (isDragging) handleSwipeEnd(); };
-
-  const handleSwipeEnd = () => {
+  const handleEnd = () => {
     setIsDragging(false);
-    if (currentX > SWIPE_THRESHOLD) {
-      onEdit(transaction);
-      setCurrentX(0); 
+    if (onSwipeRight && currentX > SWIPE_THRESHOLD) {
+      onSwipeRight();
+      setCurrentX(0);
     } else if (currentX < -DELETE_THRESHOLD) {
       setIsDeleting(true);
       setCurrentX(-window.innerWidth);
       if (navigator.vibrate) navigator.vibrate(50);
-      setTimeout(() => onDelete(transaction.id), 300);
+      setTimeout(() => onSwipeLeft(), 300);
     } else {
       setCurrentX(0);
     }
     setStartX(null);
   };
 
-  const getSwipeBackground = () => {
-    if (currentX > 0) return 'bg-indigo-600';
-    if (currentX < 0) return 'bg-red-600';
-    return 'bg-slate-900';
-  };
-
   if (isDeleting && Math.abs(currentX) >= window.innerWidth) {
-      return <div className="h-[88px] mb-3 w-full"></div>;
+      return <div className="h-[70px] mb-2 w-full"></div>;
   }
 
   return (
-    <div 
-      className="relative mb-3 h-[88px] w-full overflow-hidden rounded-xl select-none touch-pan-y"
-      onMouseLeave={handleMouseLeave}
-      onMouseUp={handleMouseUp}
-      style={{ touchAction: 'pan-y' }}
-    >
-      <div className={`absolute inset-0 flex items-center justify-between px-6 transition-colors ${getSwipeBackground()}`}>
-        <div className="flex items-center gap-2 text-white font-bold transition-opacity duration-200" style={{ opacity: currentX > 30 ? 1 : 0 }}>
-          <Edit2 size={24} />
-          <span>Modifica</span>
-        </div>
-        <div className="flex items-center gap-2 text-white font-bold transition-opacity duration-200" style={{ opacity: currentX < -30 ? 1 : 0 }}>
-          <span>Elimina</span>
-          <Trash2 size={24} />
+    <div className="relative mb-2 w-full overflow-hidden rounded-xl select-none touch-pan-y" style={{ touchAction: 'pan-y' }}>
+      <div className={`absolute inset-0 flex items-center justify-between px-6 transition-colors ${currentX > 0 ? rightColor : 'bg-red-600'}`}>
+        {onSwipeRight && (
+          <div className="flex items-center gap-2 text-white font-bold transition-opacity" style={{ opacity: currentX > 30 ? 1 : 0 }}>
+            {rightIcon} <span>{rightLabel}</span>
+          </div>
+        )}
+        <div className="flex items-center gap-2 text-white font-bold transition-opacity ml-auto" style={{ opacity: currentX < -30 ? 1 : 0 }}>
+          <span>{leftLabel}</span> <Trash2 size={24} />
         </div>
       </div>
       <div 
-        ref={itemRef}
-        className="relative h-full bg-slate-900 flex items-center justify-between p-4 border border-slate-800 rounded-xl transition-transform ease-out"
-        style={{ 
-          transform: `translateX(${currentX}px)`,
-          transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)' 
-        }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
+        className="relative bg-slate-900 border border-slate-800 rounded-xl transition-transform ease-out"
+        style={{ transform: `translateX(${currentX}px)`, transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)' }}
+        onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleEnd}
       >
-        <div className="flex items-center gap-3 pointer-events-none">
-          <div className={`p-2 rounded-full ${isExpense ? 'bg-red-950/30 text-red-400' : 'bg-emerald-950/30 text-emerald-400'}`}>
-            {isExpense ? <ArrowDownCircle size={24} /> : <ArrowUpCircle size={24} />}
-          </div>
-          <div>
-            <p className="font-medium text-slate-200">{transaction.description}</p>
-            <p className="text-xs text-slate-500 capitalize">{transaction.category} • {new Date(transaction.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}</p>
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-1 pointer-events-none">
-          <span className={`font-bold ${isExpense ? 'text-red-400' : 'text-emerald-400'}`}>
-            {isExpense ? '-' : '+'}€{transaction.amount.toFixed(2)}
-          </span>
-        </div>
+        {children}
       </div>
     </div>
   );
 };
 
-// AddModal Component
-interface AddModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (amount: number, description: string, category: string, type: TransactionType, id?: string) => void;
-  initialData?: Transaction | null;
-  expenseCategories: string[];
-  incomeCategories: string[];
-  onAddCategory: (newCategory: string, type: TransactionType) => void;
-}
+// StatsCard
+const StatsCard = ({ label, amount, type }: { label: string, amount: number, type: 'balance'|'income'|'expense' }) => {
+  let colors = type === 'income' ? "text-emerald-400 bg-emerald-950/30 border-emerald-900/30" : 
+               type === 'expense' ? "text-red-400 bg-red-950/30 border-red-900/30" : 
+               "text-indigo-400 bg-slate-900 border-slate-800";
+  return (
+    <div className={`flex-1 p-3 rounded-2xl border shadow-sm flex flex-col items-center justify-center ${colors}`}>
+      <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">{label}</span>
+      <span className="text-lg sm:text-xl font-bold truncate max-w-full">{amount.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</span>
+    </div>
+  );
+};
 
-const AddModal: React.FC<AddModalProps> = ({ 
-  isOpen, onClose, onSave, initialData, expenseCategories, incomeCategories, onAddCategory
-}) => {
+// AddModal
+const AddModal = ({ isOpen, onClose, onSave, initialData, expenseCategories, incomeCategories, onAddCategory }: any) => {
   const [type, setType] = useState<TransactionType>('expense');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
-  
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
-  const newCategoryInputRef = useRef<HTMLInputElement>(null);
-
-  const currentCategories = type === 'expense' ? expenseCategories : incomeCategories;
-
+  
   useEffect(() => {
     if (isOpen) {
-      setIsAddingCategory(false);
-      setNewCategoryName('');
       if (initialData) {
         setType(initialData.type);
         setAmount(initialData.amount.toString());
         setDescription(initialData.description);
         setCategory(initialData.category);
       } else {
-        setType('expense');
-        setAmount('');
-        setDescription('');
-        setCategory(expenseCategories[0] || '');
+        setAmount(''); setDescription(''); setCategory(expenseCategories[0] || '');
       }
     }
-  }, [isOpen, initialData, expenseCategories]);
-
-  useEffect(() => {
-    if (isAddingCategory && newCategoryInputRef.current) newCategoryInputRef.current.focus();
-  }, [isAddingCategory]);
+  }, [isOpen, initialData]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount || !description) return;
-    onSave(
-      parseFloat(amount), description, category || currentCategories[0], type, initialData?.id
-    );
+    onSave(parseFloat(amount), description, category, type, initialData?.id);
     onClose();
   };
 
-  const handleCreateCategory = () => {
+  const handleAddCat = () => {
     if (newCategoryName.trim()) {
       onAddCategory(newCategoryName.trim(), type);
       setCategory(newCategoryName.trim());
+      setIsAddingCategory(false);
       setNewCategoryName('');
-      setIsAddingCategory(false);
-    } else {
-      setIsAddingCategory(false);
     }
   };
-
-  const handleKeyDownCategory = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleCreateCategory();
-    } else if (e.key === 'Escape') {
-      setIsAddingCategory(false);
-    }
-  };
-
-  const isEditing = !!initialData;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-800 overflow-hidden animate-slide-up max-h-[90vh] overflow-y-auto no-scrollbar">
-        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900 sticky top-0 z-10">
-          <h2 className="text-lg font-bold text-slate-100">{isEditing ? 'Modifica Transazione' : 'Nuova Transazione'}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-200 transition-colors"><X size={24} /></button>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-slate-900 w-full max-w-md rounded-2xl border border-slate-800 overflow-hidden animate-slide-up">
+        <div className="p-4 border-b border-slate-800 flex justify-between bg-slate-900">
+          <h2 className="text-lg font-bold text-slate-100">{initialData ? 'Modifica' : 'Nuova'} Transazione</h2>
+          <button onClick={onClose}><X size={24} className="text-slate-400" /></button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
           <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
-            <button
-              type="button"
-              className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'expense' ? 'bg-slate-800 text-red-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
-              onClick={() => { setType('expense'); setCategory(expenseCategories[0] || ''); setIsAddingCategory(false); }}
-            >
-              Uscita
-            </button>
-            <button
-              type="button"
-              className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'income' ? 'bg-slate-800 text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
-              onClick={() => { setType('income'); setCategory(incomeCategories[0] || ''); setIsAddingCategory(false); }}
-            >
-              Entrata
-            </button>
+            <button type="button" className={`flex-1 py-2 rounded-md text-sm font-medium ${type === 'expense' ? 'bg-slate-800 text-red-400' : 'text-slate-500'}`} onClick={() => setType('expense')}>Uscita</button>
+            <button type="button" className={`flex-1 py-2 rounded-md text-sm font-medium ${type === 'income' ? 'bg-slate-800 text-emerald-400' : 'text-slate-500'}`} onClick={() => setType('income')}>Entrata</button>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Importo (€)</label>
-            <input
-              type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00"
-              className="w-full text-4xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 bg-transparent transition-colors"
-              autoFocus={!isEditing} required
-            />
+            <label className="text-xs font-semibold text-slate-500 uppercase">Importo (€)</label>
+            <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" className="w-full text-4xl font-bold text-white bg-transparent border-b border-slate-700 focus:border-indigo-500 pb-2 outline-none" autoFocus={!initialData} required />
+          </div>
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-xs font-semibold text-slate-500 uppercase">Descrizione</label>
+              <input type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="Es. Spesa" className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-white outline-none focus:border-indigo-500" required />
+            </div>
+            <div className="mt-5"><VoiceInput onResult={setDescription} /></div>
           </div>
           <div>
-             <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Descrizione</label>
-             <input
-              type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Es. Spesa settimanale"
-              className="w-full p-3 bg-slate-950 border border-slate-800 text-slate-200 rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder-slate-600"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase mb-2">Categoria</label>
+            <label className="text-xs font-semibold text-slate-500 uppercase mb-2 block">Categoria</label>
             <div className="flex flex-wrap gap-2">
-              {currentCategories.map(cat => (
-                <button
-                  key={cat} type="button" onClick={() => setCategory(cat)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${category === cat ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-indigo-500 hover:text-slate-200'}`}
-                >
-                  {cat}
-                </button>
+              {(type === 'expense' ? expenseCategories : incomeCategories).map(cat => (
+                <button key={cat} type="button" onClick={() => setCategory(cat)} className={`px-3 py-1 rounded-full text-xs border ${category === cat ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-900 text-slate-400 border-slate-700'}`}>{cat}</button>
               ))}
               {isAddingCategory ? (
-                <div className="flex items-center gap-1">
-                  <input
-                    ref={newCategoryInputRef} type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)}
-                    onBlur={handleCreateCategory} onKeyDown={handleKeyDownCategory} placeholder="Nuova..."
-                    className="px-3 py-1.5 rounded-full text-xs font-medium border border-indigo-500 bg-slate-800 text-white outline-none w-24 placeholder-slate-500"
-                  />
-                </div>
+                <div className="flex gap-1"><input value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} className="w-20 bg-slate-800 text-xs px-2 rounded text-white" /><button type="button" onClick={handleAddCat}><Check size={14} className="text-emerald-500"/></button></div>
               ) : (
-                <button type="button" onClick={() => setIsAddingCategory(true)} className="px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-slate-600 text-slate-500 hover:border-slate-400 hover:text-slate-300 transition-all flex items-center gap-1">
-                  <Plus size={12} /> Nuova
-                </button>
+                <button type="button" onClick={() => setIsAddingCategory(true)} className="px-3 py-1 rounded-full text-xs border border-dashed border-slate-600 text-slate-500 flex gap-1"><Plus size={12} /> Nuova</button>
               )}
             </div>
           </div>
-          <button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-indigo-900/20 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center gap-2">
-            {isEditing ? <Save size={20} /> : <Check size={20} />} {isEditing ? 'Aggiorna' : 'Salva'}
-          </button>
+          <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-500 transition-all">{initialData ? 'Aggiorna' : 'Salva'}</button>
         </form>
       </div>
     </div>
   );
 };
 
-// --- APP ---
+// Settings Modal
+const SettingsModal = ({ isOpen, onClose, onClearData, expenseCategories, incomeCategories, onDeleteCategory }: any) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-slate-900 w-full max-w-md rounded-2xl border border-slate-800 overflow-hidden animate-slide-up">
+        <div className="p-4 border-b border-slate-800 flex justify-between items-center"><h2 className="font-bold text-white">Impostazioni</h2><button onClick={onClose}><X size={24} className="text-slate-400" /></button></div>
+        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+          <div>
+            <h3 className="text-sm font-bold text-slate-400 mb-2 uppercase">Categorie Uscite</h3>
+            <div className="flex flex-wrap gap-2">{expenseCategories.map((c: string) => <div key={c} className="flex items-center gap-1 bg-slate-800 px-3 py-1 rounded-full text-xs text-slate-300"><span>{c}</span><button onClick={() => onDeleteCategory(c, 'expense')}><X size={12} /></button></div>)}</div>
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-400 mb-2 uppercase">Categorie Entrate</h3>
+            <div className="flex flex-wrap gap-2">{incomeCategories.map((c: string) => <div key={c} className="flex items-center gap-1 bg-slate-800 px-3 py-1 rounded-full text-xs text-slate-300"><span>{c}</span><button onClick={() => onDeleteCategory(c, 'income')}><X size={12} /></button></div>)}</div>
+          </div>
+          <div className="pt-4 border-t border-slate-800">
+            <button onClick={() => { if(confirm("Sei sicuro? Cancellerà tutto!")) onClearData(); }} className="w-full py-3 bg-red-900/20 text-red-400 border border-red-900/50 rounded-xl font-bold flex items-center justify-center gap-2"><LogOut size={18} /> Resetta Dati App</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
-interface ListItem {
-  id: string;
-  text: string;
-  completed: boolean;
-}
-
-interface AlertItem {
-  id: string;
-  type: 'warning' | 'info' | 'success';
-  message: string;
-  date: string;
-}
+// --- MAIN APP ---
 
 const App = () => {
   const [activeTab, setActiveTab] = useState<'home' | 'shopping' | 'doit' | 'alerts' | 'reports'>('home');
   
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    try {
-      const saved = localStorage.getItem('transactions');
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
+  // State
+  const [transactions, setTransactions] = useState<Transaction[]>(() => JSON.parse(localStorage.getItem('transactions') || '[]'));
+  const [shoppingList, setShoppingList] = useState<ListItem[]>(() => JSON.parse(localStorage.getItem('shoppingList') || '[]'));
+  const [todoList, setTodoList] = useState<ListItem[]>(() => JSON.parse(localStorage.getItem('todoList') || '[]'));
+  const [manualAlerts, setManualAlerts] = useState<ManualAlert[]>(() => JSON.parse(localStorage.getItem('manualAlerts') || '[]'));
+  
+  const [expenseCategories, setExpenseCategories] = useState<string[]>(() => JSON.parse(localStorage.getItem('expenseCategories') || JSON.stringify(DEFAULT_EXPENSE_CATEGORIES)));
+  const [incomeCategories, setIncomeCategories] = useState<string[]>(() => JSON.parse(localStorage.getItem('incomeCategories') || JSON.stringify(DEFAULT_INCOME_CATEGORIES)));
 
-  const [shoppingList, setShoppingList] = useState<ListItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('shoppingList');
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
-  const [newShoppingItem, setNewShoppingItem] = useState('');
-
-  const [todoList, setTodoList] = useState<ListItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('todoList');
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
-  const [newTodoItem, setNewTodoItem] = useState('');
-
-  const [expenseCategories, setExpenseCategories] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('expenseCategories');
-      return saved ? JSON.parse(saved) : DEFAULT_EXPENSE_CATEGORIES;
-    } catch { return DEFAULT_EXPENSE_CATEGORIES; }
-  });
-  const [incomeCategories, setIncomeCategories] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('incomeCategories');
-      return saved ? JSON.parse(saved) : DEFAULT_INCOME_CATEGORIES;
-    } catch { return DEFAULT_INCOME_CATEGORIES; }
-  });
-
+  // UI State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [aiAdvice, setAiAdvice] = useState<string>('');
+  
+  // Inputs
+  const [newShoppingItem, setNewShoppingItem] = useState('');
+  const [newTodoItem, setNewTodoItem] = useState('');
+  const [newAlertMsg, setNewAlertMsg] = useState('');
+
+  // AI
+  const [aiAdvice, setAiAdvice] = useState('');
   const [isLoadingAi, setIsLoadingAi] = useState(false);
 
+  // Persist
   useEffect(() => { localStorage.setItem('transactions', JSON.stringify(transactions)); }, [transactions]);
   useEffect(() => { localStorage.setItem('shoppingList', JSON.stringify(shoppingList)); }, [shoppingList]);
   useEffect(() => { localStorage.setItem('todoList', JSON.stringify(todoList)); }, [todoList]);
+  useEffect(() => { localStorage.setItem('manualAlerts', JSON.stringify(manualAlerts)); }, [manualAlerts]);
   useEffect(() => { localStorage.setItem('expenseCategories', JSON.stringify(expenseCategories)); }, [expenseCategories]);
   useEffect(() => { localStorage.setItem('incomeCategories', JSON.stringify(incomeCategories)); }, [incomeCategories]);
 
-  const currentMonth = new Date().toLocaleString('it-IT', { month: 'long', year: 'numeric' });
-  
+  // Derived
   const monthlyStats = useMemo(() => {
     const now = new Date();
-    const currentMonthTrans = transactions.filter(t => {
-      const d = new Date(t.date);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    });
-
-    const income = currentMonthTrans.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-    const expense = currentMonthTrans.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
-
-    return { totalIncome: income, totalExpense: expense, balance: income - expense };
+    const current = transactions.filter(t => new Date(t.date).getMonth() === now.getMonth() && new Date(t.date).getFullYear() === now.getFullYear());
+    const inc = current.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+    const exp = current.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+    return { totalIncome: inc, totalExpense: exp, balance: inc - exp };
   }, [transactions]);
 
-  const systemAlerts = useMemo<AlertItem[]>(() => {
-    const alerts: AlertItem[] = [];
-    if (monthlyStats.balance < 0) {
-      alerts.push({ id: 'bal-low', type: 'warning', message: 'Attenzione: Il saldo mensile è negativo.', date: new Date().toISOString() });
-    }
-    if (monthlyStats.totalExpense > monthlyStats.totalIncome && monthlyStats.totalIncome > 0) {
-      alerts.push({ id: 'exp-high', type: 'warning', message: 'Le uscite superano le entrate questo mese.', date: new Date().toISOString() });
-    }
-    if (shoppingList.filter(i => !i.completed).length > 5) {
-      alerts.push({ id: 'shop-len', type: 'info', message: `Hai ${shoppingList.filter(i => !i.completed).length} articoli nella lista della spesa.`, date: new Date().toISOString() });
-    }
-    if (todoList.filter(i => !i.completed).length > 0) {
-       alerts.push({ id: 'todo-len', type: 'info', message: `Hai ${todoList.filter(i => !i.completed).length} attività in sospeso.`, date: new Date().toISOString() });
-    }
-    if (alerts.length === 0) {
-        alerts.push({ id: 'ok', type: 'success', message: 'Tutto ok! Nessuna criticità rilevata.', date: new Date().toISOString() });
-    }
-    return alerts;
-  }, [monthlyStats, shoppingList, todoList]);
-
-  const handleOpenAddModal = () => {
-    setEditingTransaction(null);
-    setIsAddModalOpen(true);
-  };
-
-  const handleSaveTransaction = (amount: number, description: string, category: string, type: TransactionType, id?: string) => {
+  // Handlers
+  const handleSaveTrans = (amount: number, description: string, category: string, type: TransactionType, id?: string) => {
     if (id) {
-      setTransactions(prev => prev.map(t => t.id === id ? { ...t, amount, description, category, type } : t));
+      setTransactions(p => p.map(t => t.id === id ? { ...t, amount, description, category, type } : t));
     } else {
-      const newTransaction: Transaction = {
-        id: crypto.randomUUID(), amount, description, category, type, date: new Date().toISOString()
-      };
-      setTransactions(prev => [newTransaction, ...prev]);
-    }
-    setIsAddModalOpen(false);
-  };
-
-  const handleDeleteTransaction = (id: string) => {
-    setTransactions(prev => prev.filter(t => t.id !== id));
-  };
-
-  const handleEditTransaction = (transaction: Transaction) => {
-    setEditingTransaction(transaction);
-    setIsAddModalOpen(true);
-  };
-
-  const handleAddCategory = (newCat: string, type: TransactionType) => {
-    if (type === 'expense') {
-      if (!expenseCategories.includes(newCat)) setExpenseCategories([...expenseCategories, newCat]);
-    } else {
-      if (!incomeCategories.includes(newCat)) setIncomeCategories([...incomeCategories, newCat]);
+      setTransactions(p => [{ id: crypto.randomUUID(), amount, description, category, type, date: new Date().toISOString() }, ...p]);
     }
   };
 
-  const generateAdvice = async () => {
-    setIsLoadingAi(true);
-    const advice = await getFinancialAdvice(transactions, currentMonth);
-    setAiAdvice(advice);
-    setIsLoadingAi(false);
+  const handleClearData = () => {
+    localStorage.clear();
+    window.location.reload();
   };
 
-  const addListItem = (listType: 'shopping' | 'todo', text: string) => {
+  const handleAddList = (type: 'shopping'|'todo', text: string) => {
     if (!text.trim()) return;
-    const newItem: ListItem = { id: crypto.randomUUID(), text: text.trim(), completed: false };
-    if (listType === 'shopping') {
-      setShoppingList(prev => [newItem, ...prev]);
-      setNewShoppingItem('');
-    } else {
-      setTodoList(prev => [newItem, ...prev]);
-      setNewTodoItem('');
-    }
+    const item = { id: crypto.randomUUID(), text: text.trim(), completed: false };
+    if (type === 'shopping') { setShoppingList([item, ...shoppingList]); setNewShoppingItem(''); }
+    else { setTodoList([item, ...todoList]); setNewTodoItem(''); }
   };
 
-  const toggleListItem = (listType: 'shopping' | 'todo', id: string) => {
-    if (listType === 'shopping') {
-      setShoppingList(prev => prev.map(i => i.id === id ? { ...i, completed: !i.completed } : i));
-    } else {
-      setTodoList(prev => prev.map(i => i.id === id ? { ...i, completed: !i.completed } : i));
-    }
+  const toggleList = (type: 'shopping'|'todo', id: string) => {
+    if (type === 'shopping') setShoppingList(p => p.map(i => i.id === id ? { ...i, completed: !i.completed } : i));
+    else setTodoList(p => p.map(i => i.id === id ? { ...i, completed: !i.completed } : i));
   };
 
-  const deleteListItem = (listType: 'shopping' | 'todo', id: string) => {
-    if (listType === 'shopping') {
-      setShoppingList(prev => prev.filter(i => i.id !== id));
-    } else {
-      setTodoList(prev => prev.filter(i => i.id !== id));
-    }
+  const deleteList = (type: 'shopping'|'todo', id: string) => {
+    if (type === 'shopping') setShoppingList(p => p.filter(i => i.id !== id));
+    else setTodoList(p => p.filter(i => i.id !== id));
   };
 
+  const handleAddAlert = () => {
+    if(!newAlertMsg.trim()) return;
+    setManualAlerts([{ id: crypto.randomUUID(), message: newAlertMsg, date: new Date().toISOString() }, ...manualAlerts]);
+    setNewAlertMsg('');
+  };
+
+  // Renderers
   const renderContent = () => {
     switch (activeTab) {
-      case 'home':
-        return (
-          <>
-            <section className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 p-5 rounded-2xl border border-indigo-500/20 relative overflow-hidden">
-               <div className="flex justify-between items-center mb-3 relative z-10">
-                 <div className="flex items-center gap-2">
-                   <Sparkles size={18} className="text-indigo-400" />
-                   <h3 className="font-bold text-indigo-100">Gemini Insights</h3>
-                 </div>
-                 {!aiAdvice && (
-                   <button onClick={generateAdvice} disabled={isLoadingAi} className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded-full font-medium transition-colors disabled:opacity-50">
-                     {isLoadingAi ? 'Analisi...' : 'Analizza'}
-                   </button>
-                 )}
-               </div>
-               {aiAdvice ? (
-                 <div className="text-sm text-indigo-100/80 leading-relaxed animate-fade-in markdown-content">
-                    {aiAdvice.split('\n').map((line, i) => <p key={i} className="mb-1">{line}</p>)}
-                 </div>
-               ) : (
-                 <p className="text-xs text-indigo-300/60">Tocca "Analizza" per ottenere consigli personalizzati.</p>
-               )}
-            </section>
-            <section>
-              <div className="flex justify-between items-end mb-4">
-                <h3 className="text-lg font-bold text-white">Transazioni Recenti</h3>
-                <button onClick={() => setActiveTab('reports')} className="text-xs text-indigo-400 font-medium flex items-center gap-1 hover:text-indigo-300">
-                  Vedi tutto <ArrowRight size={14} />
-                </button>
-              </div>
-              <div className="space-y-1">
-                {transactions.length > 0 ? (
-                  transactions.slice(0, 10).map((t, index) => (
-                    <TransactionItem key={t.id} transaction={t} onDelete={handleDeleteTransaction} onEdit={handleEditTransaction} isFirst={index === 0} />
-                  ))
-                ) : (
-                  <div className="text-center py-10 text-slate-600">
-                    <PieChart size={48} className="mx-auto mb-3 opacity-20" />
-                    <p>Nessuna transazione registrata</p>
-                  </div>
-                )}
-              </div>
-            </section>
-          </>
-        );
-      case 'shopping':
-        return (
-          <div className="space-y-6">
-             <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
-                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                  <ShoppingCart className="text-emerald-400" size={20} />
-                  Lista della Spesa
-                </h3>
-                <div className="flex gap-2 mb-4">
-                  <input 
-                    type="text" value={newShoppingItem} onChange={(e) => setNewShoppingItem(e.target.value)}
-                    placeholder="Aggiungi prodotto..."
-                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white outline-none focus:border-indigo-500 transition-colors"
-                    onKeyDown={(e) => e.key === 'Enter' && addListItem('shopping', newShoppingItem)}
-                  />
-                  <button onClick={() => addListItem('shopping', newShoppingItem)} className="bg-indigo-600 hover:bg-indigo-500 text-white p-3 rounded-lg transition-colors"><Plus size={24} /></button>
-                </div>
-                <div className="space-y-2 max-h-[60vh] overflow-y-auto no-scrollbar">
-                  {shoppingList.length > 0 ? shoppingList.map(item => (
-                    <div key={item.id} className="flex items-center justify-between bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 animate-slide-up">
-                      <button onClick={() => toggleListItem('shopping', item.id)} className="flex items-center gap-3 flex-1 text-left">
-                        {item.completed ? <CheckCircle2 className="text-emerald-500" size={20} /> : <Circle className="text-slate-500" size={20} />}
-                        <span className={`text-sm ${item.completed ? 'line-through text-slate-500' : 'text-slate-200'}`}>{item.text}</span>
-                      </button>
-                      <button onClick={() => deleteListItem('shopping', item.id)} className="text-slate-500 hover:text-red-400 p-2"><Trash2 size={16} /></button>
-                    </div>
-                  )) : <p className="text-center text-slate-600 text-sm py-8">La lista è vuota</p>}
-                </div>
+      case 'home': return (
+        <>
+          <section className="bg-indigo-950/30 p-4 rounded-xl border border-indigo-500/20 relative mb-6">
+             <div className="flex justify-between items-center mb-2">
+               <div className="flex items-center gap-2 text-indigo-200 font-bold"><Sparkles size={16}/><span>AI Advisor</span></div>
+               <button onClick={async () => { setIsLoadingAi(true); setAiAdvice(await getFinancialAdvice(transactions, 'Mese Corrente')); setIsLoadingAi(false); }} disabled={isLoadingAi} className="text-[10px] bg-indigo-600 px-2 py-1 rounded text-white">{isLoadingAi ? '...' : 'Analizza'}</button>
              </div>
+             <p className="text-xs text-indigo-100/80 leading-relaxed">{aiAdvice || "Tocca Analizza per consigli."}</p>
+          </section>
+          <div className="space-y-2">
+            <h3 className="font-bold text-white mb-2">Recenti</h3>
+            {transactions.slice(0, 10).map(t => (
+              <SwipeableItem key={t.id} onSwipeLeft={() => setTransactions(p => p.filter(x => x.id !== t.id))} onSwipeRight={() => { setEditingTransaction(t); setIsAddModalOpen(true); }}>
+                <div className="flex items-center justify-between p-4 h-[70px]">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-full ${t.type === 'expense' ? 'bg-red-950/40 text-red-400' : 'bg-emerald-950/40 text-emerald-400'}`}>{t.type === 'expense' ? <ArrowDownCircle size={20}/> : <ArrowUpCircle size={20}/>}</div>
+                    <div><p className="font-medium text-slate-200 text-sm">{t.description}</p><p className="text-[10px] text-slate-500 capitalize">{t.category}</p></div>
+                  </div>
+                  <span className={`font-bold ${t.type === 'expense' ? 'text-red-400' : 'text-emerald-400'}`}>{t.type === 'expense' ? '-' : '+'}€{t.amount.toFixed(2)}</span>
+                </div>
+              </SwipeableItem>
+            ))}
+            {transactions.length === 0 && <p className="text-center text-slate-600 text-sm py-4">Nessuna transazione</p>}
           </div>
-        );
-      case 'doit':
-        return (
-          <div className="space-y-6">
-             <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
-                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                  <ListTodo className="text-indigo-400" size={20} />
-                  Cose da fare (Do It)
-                </h3>
-                <div className="flex gap-2 mb-4">
-                  <input 
-                    type="text" value={newTodoItem} onChange={(e) => setNewTodoItem(e.target.value)}
-                    placeholder="Nuova attività..."
-                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white outline-none focus:border-indigo-500 transition-colors"
-                    onKeyDown={(e) => e.key === 'Enter' && addListItem('todo', newTodoItem)}
-                  />
-                  <button onClick={() => addListItem('todo', newTodoItem)} className="bg-indigo-600 hover:bg-indigo-500 text-white p-3 rounded-lg transition-colors"><Plus size={24} /></button>
+        </>
+      );
+      case 'shopping': return (
+        <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+          <h3 className="font-bold text-white mb-4 flex items-center gap-2"><ShoppingCart size={20} className="text-emerald-400"/> Lista Spesa</h3>
+          <div className="flex gap-2 mb-4">
+            <input value={newShoppingItem} onChange={e => setNewShoppingItem(e.target.value)} placeholder="Prodotto..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none" onKeyDown={e => e.key === 'Enter' && handleAddList('shopping', newShoppingItem)}/>
+            <VoiceInput onResult={setNewShoppingItem} />
+            <button onClick={() => handleAddList('shopping', newShoppingItem)} className="bg-indigo-600 text-white p-2 rounded-lg"><Plus/></button>
+          </div>
+          {shoppingList.map(i => (
+             <SwipeableItem key={i.id} onSwipeLeft={() => deleteList('shopping', i.id)} onSwipeRight={() => toggleList('shopping', i.id)} rightLabel={i.completed ? "Apri" : "Fatto"} rightIcon={<CheckCircle2/>} rightColor="bg-emerald-600">
+                <div className="flex items-center gap-3 p-4 h-[60px]">
+                   {i.completed ? <CheckCircle2 className="text-emerald-500" size={20}/> : <Circle className="text-slate-500" size={20}/>}
+                   <span className={i.completed ? 'line-through text-slate-500' : 'text-white'}>{i.text}</span>
                 </div>
-                <div className="space-y-2 max-h-[60vh] overflow-y-auto no-scrollbar">
-                  {todoList.length > 0 ? todoList.map(item => (
-                    <div key={item.id} className="flex items-center justify-between bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 animate-slide-up">
-                      <button onClick={() => toggleListItem('todo', item.id)} className="flex items-center gap-3 flex-1 text-left">
-                        {item.completed ? <CheckCircle2 className="text-indigo-500" size={20} /> : <Circle className="text-slate-500" size={20} />}
-                        <span className={`text-sm ${item.completed ? 'line-through text-slate-500' : 'text-slate-200'}`}>{item.text}</span>
-                      </button>
-                      <button onClick={() => deleteListItem('todo', item.id)} className="text-slate-500 hover:text-red-400 p-2"><Trash2 size={16} /></button>
-                    </div>
-                  )) : <p className="text-center text-slate-600 text-sm py-8">Nessuna attività in programma</p>}
+             </SwipeableItem>
+          ))}
+        </div>
+      );
+      case 'doit': return (
+        <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+          <h3 className="font-bold text-white mb-4 flex items-center gap-2"><ListTodo size={20} className="text-indigo-400"/> Cose da fare</h3>
+          <div className="flex gap-2 mb-4">
+            <input value={newTodoItem} onChange={e => setNewTodoItem(e.target.value)} placeholder="Attività..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none" onKeyDown={e => e.key === 'Enter' && handleAddList('todo', newTodoItem)}/>
+            <VoiceInput onResult={setNewTodoItem} />
+            <button onClick={() => handleAddList('todo', newTodoItem)} className="bg-indigo-600 text-white p-2 rounded-lg"><Plus/></button>
+          </div>
+          {todoList.map(i => (
+             <SwipeableItem key={i.id} onSwipeLeft={() => deleteList('todo', i.id)} onSwipeRight={() => toggleList('todo', i.id)} rightLabel={i.completed ? "Apri" : "Fatto"} rightIcon={<CheckCircle2/>} rightColor="bg-indigo-600">
+                <div className="flex items-center gap-3 p-4 h-[60px]">
+                   {i.completed ? <CheckCircle2 className="text-indigo-500" size={20}/> : <Circle className="text-slate-500" size={20}/>}
+                   <span className={i.completed ? 'line-through text-slate-500' : 'text-white'}>{i.text}</span>
                 </div>
+             </SwipeableItem>
+          ))}
+        </div>
+      );
+      case 'alerts': return (
+        <div className="space-y-6">
+           <div>
+             <h3 className="font-bold text-white mb-2 flex gap-2"><Bell className="text-yellow-400"/> Avvisi Sistema</h3>
+             {monthlyStats.balance < 0 && <div className="p-3 bg-red-900/20 text-red-200 border border-red-900/50 rounded-lg text-sm mb-2">Saldo negativo!</div>}
+             {shoppingList.length > 5 && <div className="p-3 bg-blue-900/20 text-blue-200 border border-blue-900/50 rounded-lg text-sm mb-2">Lista spesa lunga ({shoppingList.length})</div>}
+             {monthlyStats.balance >= 0 && shoppingList.length <= 5 && <p className="text-slate-500 text-sm">Nessun avviso critico.</p>}
+           </div>
+           <div>
+             <h3 className="font-bold text-white mb-2 flex gap-2"><Edit2 className="text-indigo-400"/> I miei Promemoria</h3>
+             <div className="flex gap-2 mb-2">
+                <input value={newAlertMsg} onChange={e => setNewAlertMsg(e.target.value)} placeholder="Nuovo avviso..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none"/>
+                <button onClick={handleAddAlert} className="bg-indigo-600 text-white p-2 rounded-lg"><Plus/></button>
              </div>
+             {manualAlerts.map(a => (
+               <SwipeableItem key={a.id} onSwipeLeft={() => setManualAlerts(p => p.filter(x => x.id !== a.id))}>
+                 <div className="p-4 flex items-center justify-between h-[60px]"><span className="text-white">{a.message}</span><span className="text-[10px] text-slate-500">{new Date(a.date).toLocaleDateString()}</span></div>
+               </SwipeableItem>
+             ))}
+           </div>
+        </div>
+      );
+      case 'reports': return (
+        <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
+          <h3 className="font-bold text-white mb-4">Report Mensile</h3>
+          <div className="space-y-3">
+             <div className="flex justify-between"><span className="text-slate-400">Entrate</span><span className="text-emerald-400 font-bold">€{monthlyStats.totalIncome}</span></div>
+             <div className="flex justify-between"><span className="text-slate-400">Uscite</span><span className="text-red-400 font-bold">€{monthlyStats.totalExpense}</span></div>
+             <div className="h-px bg-slate-800"></div>
+             <div className="flex justify-between"><span className="text-white">Saldo</span><span className={monthlyStats.balance >= 0 ? "text-indigo-400 font-bold" : "text-red-400 font-bold"}>€{monthlyStats.balance}</span></div>
           </div>
-        );
-      case 'alerts':
-        return (
-          <div className="space-y-6">
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Bell className="text-yellow-400" size={20} /> Centro Avvisi</h3>
-            <div className="space-y-3">
-              {systemAlerts.map((alert) => (
-                <div key={alert.id} className={`p-4 rounded-xl border flex items-start gap-4 ${alert.type === 'warning' ? 'bg-red-950/20 border-red-900/50 text-red-200' : alert.type === 'success' ? 'bg-emerald-950/20 border-emerald-900/50 text-emerald-200' : 'bg-blue-950/20 border-blue-900/50 text-blue-200'}`}>
-                  <div className={`p-2 rounded-full ${alert.type === 'warning' ? 'bg-red-900/30 text-red-400' : alert.type === 'success' ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-900/30 text-blue-400'}`}>
-                    {alert.type === 'warning' ? <AlertTriangle size={20} /> : alert.type === 'success' ? <CheckCircle2 size={20} /> : <Info size={20} />}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium leading-relaxed">{alert.message}</p>
-                    <p className="text-[10px] opacity-60 mt-2 uppercase tracking-wider">Sistema • {new Date(alert.date).toLocaleDateString()}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      case 'reports':
-        return (
-          <div className="space-y-6">
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><BarChart3 className="text-indigo-400" size={20} /> Report Finanziario</h3>
-            <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-               <h4 className="text-sm text-slate-400 mb-4">Riepilogo Totale</h4>
-               <div className="space-y-3">
-                 <div className="flex justify-between items-center"><span className="text-slate-300">Totale Entrate</span><span className="text-emerald-400 font-bold">+€{monthlyStats.totalIncome.toFixed(2)}</span></div>
-                 <div className="flex justify-between items-center"><span className="text-slate-300">Totale Uscite</span><span className="text-red-400 font-bold">-€{monthlyStats.totalExpense.toFixed(2)}</span></div>
-                 <div className="h-px bg-slate-800 my-2"></div>
-                 <div className="flex justify-between items-center"><span className="text-slate-200 font-medium">Saldo</span><span className={`font-bold ${monthlyStats.balance >= 0 ? 'text-indigo-400' : 'text-red-400'}`}>{monthlyStats.balance >= 0 ? '+' : ''}€{monthlyStats.balance.toFixed(2)}</span></div>
-               </div>
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-white mb-3">Tutte le transazioni</h4>
-              <div className="space-y-1">
-                {transactions.length > 0 ? (
-                  transactions.map((t) => <TransactionItem key={t.id} transaction={t} onDelete={handleDeleteTransaction} onEdit={handleEditTransaction} />)
-                ) : <p className="text-center text-slate-600 text-sm py-4">Nessun dato disponibile</p>}
-              </div>
-            </div>
-          </div>
-        );
-      default: return null;
+        </div>
+      );
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-indigo-500/30 pb-32">
-      <div className="max-w-lg mx-auto bg-slate-950 min-h-screen relative shadow-2xl shadow-black">
+    <div className="min-h-screen bg-slate-950 text-slate-200 pb-32 font-sans">
+      <div className="max-w-lg mx-auto bg-slate-950 min-h-screen relative shadow-2xl">
         <header className="px-6 pt-12 pb-6 bg-gradient-to-b from-indigo-950/20 to-slate-950">
           <div className="flex justify-between items-start mb-6">
-            <div><h1 className="text-3xl font-black text-white tracking-tight">Il mio Wallet</h1><p className="text-indigo-400 font-medium capitalize">{currentMonth}</p></div>
-            <div className="bg-slate-900 p-2 rounded-full border border-slate-800"><Wallet className="text-indigo-500" /></div>
+            <div><h1 className="text-2xl font-black text-white">Wallet</h1></div>
+            <button onClick={() => setIsSettingsOpen(true)} className="bg-slate-900 p-2 rounded-full border border-slate-800 text-slate-400 hover:text-white"><Settings size={20}/></button>
           </div>
-          <div className="flex gap-3 mb-2"><StatsCard label="Entrate" amount={monthlyStats.totalIncome} type="income" /><StatsCard label="Uscite" amount={monthlyStats.totalExpense} type="expense" /></div>
-          <StatsCard label="Bilancio Totale" amount={monthlyStats.balance} type="balance" />
+          <div className="flex gap-2 mb-2"><StatsCard label="Entrate" amount={monthlyStats.totalIncome} type="income"/><StatsCard label="Uscite" amount={monthlyStats.totalExpense} type="expense"/></div>
+          <StatsCard label="Saldo" amount={monthlyStats.balance} type="balance"/>
         </header>
 
-        <main className="px-6 space-y-8 min-h-[50vh]">
-          {renderContent()}
-        </main>
+        <main className="px-4 space-y-6">{renderContent()}</main>
 
-        <AddModal 
-          isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onSave={handleSaveTransaction}
-          initialData={editingTransaction} expenseCategories={expenseCategories} incomeCategories={incomeCategories} onAddCategory={handleAddCategory}
-        />
-
-        <div className="fixed bottom-24 left-0 right-0 z-50 max-w-lg mx-auto pointer-events-none flex justify-end px-6">
-          <button onClick={handleOpenAddModal} className="pointer-events-auto w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-600/40 hover:scale-105 active:scale-95 transition-all" aria-label="Aggiungi transazione"><Plus size={28} /></button>
+        {/* FAB */}
+        <div className="fixed bottom-24 right-4 z-50">
+          <button onClick={() => { setEditingTransaction(null); setIsAddModalOpen(true); }} className="w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-600/40 hover:scale-105 transition-all"><Plus size={28}/></button>
         </div>
 
-        <nav className="fixed bottom-0 left-0 right-0 bg-[#0E1629]/95 backdrop-blur-xl border-t border-slate-800 pb-safe z-40 max-w-lg mx-auto">
-          <div className="flex justify-around items-center h-16 px-2">
-              <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center justify-center w-14 transition-all ${activeTab === 'home' ? 'text-indigo-400 scale-110' : 'text-slate-500 hover:text-slate-300'}`}><Home size={22} className={activeTab === 'home' ? 'fill-indigo-400/20' : ''} /><span className="text-[9px] font-bold mt-1">Home</span></button>
-              <button onClick={() => setActiveTab('shopping')} className={`flex flex-col items-center justify-center w-14 transition-all ${activeTab === 'shopping' ? 'text-indigo-400 scale-110' : 'text-slate-500 hover:text-slate-300'}`}><ShoppingCart size={22} className={activeTab === 'shopping' ? 'fill-indigo-400/20' : ''} /><span className="text-[9px] font-bold mt-1">Spesa</span></button>
-              <button onClick={() => setActiveTab('doit')} className={`flex flex-col items-center justify-center w-14 transition-all ${activeTab === 'doit' ? 'text-indigo-400 scale-110' : 'text-slate-500 hover:text-slate-300'}`}><ListTodo size={22} className={activeTab === 'doit' ? 'fill-indigo-400/20' : ''} /><span className="text-[9px] font-bold mt-1">Do It</span></button>
-              <button onClick={() => setActiveTab('alerts')} className={`flex flex-col items-center justify-center w-14 transition-all ${activeTab === 'alerts' ? 'text-indigo-400 scale-110' : 'text-slate-500 hover:text-slate-300'}`}><Bell size={22} className={activeTab === 'alerts' ? 'fill-indigo-400/20' : ''} /><span className="text-[9px] font-bold mt-1">Avvisi</span></button>
-              <button onClick={() => setActiveTab('reports')} className={`flex flex-col items-center justify-center w-14 transition-all ${activeTab === 'reports' ? 'text-indigo-400 scale-110' : 'text-slate-500 hover:text-slate-300'}`}><BarChart3 size={22} className={activeTab === 'reports' ? 'fill-indigo-400/20' : ''} /><span className="text-[9px] font-bold mt-1">Report</span></button>
+        {/* Navbar with safe area padding */}
+        <nav className="fixed bottom-0 left-0 right-0 bg-[#0E1629]/95 backdrop-blur-xl border-t border-slate-800 pb-[env(safe-area-inset-bottom)] z-40 max-w-lg mx-auto">
+          <div className="flex justify-around items-center h-16">
+              {[
+                {id:'home', icon:Home, l:'Home'}, {id:'shopping', icon:ShoppingCart, l:'Spesa'}, 
+                {id:'doit', icon:ListTodo, l:'Do It'}, {id:'alerts', icon:Bell, l:'Avvisi'}, {id:'reports', icon:BarChart3, l:'Report'}
+              ].map(i => (
+                <button key={i.id} onClick={() => setActiveTab(i.id as any)} className={`flex flex-col items-center justify-center w-14 ${activeTab === i.id ? 'text-indigo-400' : 'text-slate-500'}`}>
+                  <i.icon size={22} className={activeTab === i.id ? 'fill-indigo-400/20' : ''}/><span className="text-[9px] font-bold mt-1">{i.l}</span>
+                </button>
+              ))}
           </div>
         </nav>
+
+        <AddModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onSave={handleSaveTrans} initialData={editingTransaction} expenseCategories={expenseCategories} incomeCategories={incomeCategories} onAddCategory={(c: string, t: any) => t === 'expense' ? setExpenseCategories([...expenseCategories, c]) : setIncomeCategories([...incomeCategories, c])} />
+        <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onClearData={handleClearData} expenseCategories={expenseCategories} incomeCategories={incomeCategories} onDeleteCategory={(c:string, t:any) => t === 'expense' ? setExpenseCategories(expenseCategories.filter(x => x !== c)) : setIncomeCategories(incomeCategories.filter(x => x !== c))} />
       </div>
     </div>
   );
 };
 
 let rootElement = document.getElementById('root');
-if (!rootElement) {
-  rootElement = document.createElement('div');
-  rootElement.id = 'root';
-  document.body.appendChild(rootElement);
-}
-
+if (!rootElement) { rootElement = document.createElement('div'); rootElement.id = 'root'; document.body.appendChild(rootElement); }
 const root = createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+root.render(<React.StrictMode><App /></React.StrictMode>);
