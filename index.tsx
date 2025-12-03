@@ -155,6 +155,9 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
+  // Double Tap Logic
+  const lastTapTimeRef = useRef<number>(0);
+
   // Note editing state
   const [localNote, setLocalNote] = useState(transaction.note || '');
   const itemRef = useRef<HTMLDivElement>(null);
@@ -164,6 +167,21 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
   useEffect(() => {
     setLocalNote(transaction.note || '');
   }, [transaction.note]);
+
+  // Auto-focus when expanded
+  useEffect(() => {
+    if (isExpanded && textareaRef.current) {
+        // Small delay to ensure render is complete
+        setTimeout(() => {
+            if (textareaRef.current) {
+                textareaRef.current.focus();
+                // Move cursor to end of text
+                const length = textareaRef.current.value.length;
+                textareaRef.current.setSelectionRange(length, length);
+            }
+        }, 50);
+    }
+  }, [isExpanded]);
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -177,6 +195,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
   const DELETE_THRESHOLD = 150;
   const MAX_SWIPE_RIGHT = 100;
   const TAP_THRESHOLD = 5; // Pixels to distinguish tap from drag
+  const DOUBLE_TAP_DELAY = 300; // ms
 
   // Auto-swipe hint animation
   useEffect(() => {
@@ -262,8 +281,13 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
     setIsDragging(false);
     
     if (wasTap) {
-      // Tap always toggles expansion to allow adding/editing note
-      setIsExpanded(!isExpanded);
+      // Double Tap Logic
+      const now = Date.now();
+      if (now - lastTapTimeRef.current < DOUBLE_TAP_DELAY) {
+          // Double Tap Detected!
+          toggleExpand();
+      }
+      lastTapTimeRef.current = now;
       setCurrentX(0);
     } else if (currentX > SWIPE_THRESHOLD) {
       // Swipe Right -> Edit
@@ -277,6 +301,14 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
       setCurrentX(0);
     }
     setStartX(null);
+  };
+
+  const toggleExpand = () => {
+      if (isExpanded) {
+          // Closing: Save Note
+          handleSaveNote();
+      }
+      setIsExpanded(!isExpanded);
   };
 
   const handleStartDeleteSequence = () => {
@@ -409,7 +441,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
                <div className={`flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider transition-colors ${hasNote ? 'text-indigo-400' : 'text-slate-600'}`}>
                  <FileText size={12} />
                  {isExpanded ? (
-                    hasNote ? <span>Modifica</span> : <span>+ Nota</span>
+                    hasNote ? <span>Modifica</span> : <span>Scrivi</span>
                  ) : (
                     <span>Info</span>
                  )}
@@ -428,36 +460,20 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
                ref={textareaRef}
                value={localNote}
                onChange={(e) => setLocalNote(e.target.value)}
+               onBlur={handleSaveNote} // Auto-save on blur
                // Stop propagation to prevent swiping while typing
                onTouchStart={(e) => e.stopPropagation()}
                onMouseDown={(e) => e.stopPropagation()}
-               placeholder="Tocca qui per scrivere una nota..."
+               placeholder="Scrivi una nota..."
                className="w-full bg-transparent text-sm text-slate-200 leading-relaxed p-1 outline-none resize-none min-h-[80px] placeholder-slate-500 caret-indigo-500"
              />
              <div className="flex justify-between items-center pt-2 border-t border-slate-800/50">
                  <span className="text-[10px] text-slate-500 font-medium">
                     {localNote.length > 0 ? `${localNote.length} car.` : ''}
                  </span>
-                 <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSaveNote();
-                    setIsExpanded(false);
-                  }}
-                  className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold px-4 py-1.5 rounded-lg flex items-center gap-1.5 shadow-lg shadow-indigo-900/20 transition-all"
-                >
-                  {localNote !== transaction.note ? (
-                    <>
-                      <Save size={14} strokeWidth={2.5} />
-                      Salva
-                    </>
-                  ) : (
-                    <>
-                      <Check size={14} strokeWidth={2.5} />
-                      Chiudi
-                    </>
-                  )}
-                </button>
+                 <span className="text-[10px] text-slate-600 font-medium uppercase tracking-wider">
+                   Doppio Tap per chiudere
+                 </span>
              </div>
           </div>
         </div>
@@ -1111,7 +1127,7 @@ function App() {
                <div className="space-y-0">
                  <div className="flex items-center gap-2 mb-2 px-2">
                     <Info size={12} className="text-slate-600" />
-                    <span className="text-[10px] text-slate-600 uppercase tracking-wider">Scorri: SX Elimina • DX Modifica • TAP Dettagli</span>
+                    <span className="text-[10px] text-slate-600 uppercase tracking-wider">Scorri: SX Elimina • DX Modifica • Doppio Tap Note</span>
                  </div>
                  {displayedTransactions.map((t, index) => (
                    <TransactionItem 
