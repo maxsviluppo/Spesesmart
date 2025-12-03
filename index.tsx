@@ -1273,15 +1273,124 @@ const StatsCard: React.FC<{label: string, amount: number, type: 'balance' | 'inc
 };
 
 const ShoppingModal: React.FC<{isOpen: boolean, onClose: () => void, onSave: (name: string, category: string, id?: string) => void, initialData?: ShoppingItem | null, categories: string[], onAddCategory: (newCategory: string) => void}> = ({ isOpen, onClose, onSave, initialData, categories, onAddCategory }) => {
-  const [name, setName] = useState(''); const [category, setCategory] = useState(''); const [isAddingCategory, setIsAddingCategory] = useState(false); const [newCategoryName, setNewCategoryName] = useState(''); const newCategoryInputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (isOpen) { setIsAddingCategory(false); setNewCategoryName(''); if (initialData) { setName(initialData.name); setCategory(initialData.category); } else { setName(''); setCategory(categories[0] || ''); } } }, [isOpen, initialData, categories]);
-  useEffect(() => { if (isAddingCategory && newCategoryInputRef.current) newCategoryInputRef.current.focus(); }, [isAddingCategory]);
+  const [name, setName] = useState(''); 
+  const [category, setCategory] = useState(''); 
+  const [isAddingCategory, setIsAddingCategory] = useState(false); 
+  const [newCategoryName, setNewCategoryName] = useState(''); 
+  const newCategoryInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { 
+    if (isOpen) { 
+      setIsAddingCategory(false); 
+      setNewCategoryName(''); 
+      if (initialData) { 
+        setName(initialData.name); 
+        setCategory(initialData.category); 
+      } else { 
+        setName(''); 
+        setCategory(categories[0] || ''); 
+      } 
+    } 
+  }, [isOpen, initialData, categories]);
+
+  useEffect(() => { 
+    if (isAddingCategory && newCategoryInputRef.current) newCategoryInputRef.current.focus(); 
+  }, [isAddingCategory]);
+
   if (!isOpen) return null;
-  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); if (!name.trim()) return; onSave(name, category || categories[0], initialData?.id); onClose(); };
-  const handleCreateCategory = () => { if (newCategoryName.trim()) { onAddCategory(newCategoryName.trim()); setCategory(newCategoryName.trim()); setNewCategoryName(''); setIsAddingCategory(false); } else { setIsAddingCategory(false); } };
-  const handleKeyDownCategory = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateCategory(); } else if (e.key === 'Escape') { setIsAddingCategory(false); } };
+
+  const handleSubmit = (e: React.FormEvent) => { 
+    e.preventDefault(); 
+    if (!name.trim()) return; 
+    onSave(name, category || categories[0], initialData?.id); 
+    onClose(); 
+  };
+
+  const handleCreateCategory = () => { 
+    if (newCategoryName.trim()) { 
+      onAddCategory(newCategoryName.trim()); 
+      setCategory(newCategoryName.trim()); 
+      setNewCategoryName(''); 
+      setIsAddingCategory(false); 
+    } else { 
+      setIsAddingCategory(false); 
+    } 
+  };
+
+  const handleKeyDownCategory = (e: React.KeyboardEvent) => { 
+    if (e.key === 'Enter') { 
+      e.preventDefault(); 
+      handleCreateCategory(); 
+    } else if (e.key === 'Escape') { 
+      setIsAddingCategory(false); 
+    } 
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in"><div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-800 overflow-hidden animate-slide-up"><div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900"><h2 className="text-lg font-bold text-slate-100">{initialData ? 'Modifica Prodotto' : 'Nuovo Prodotto'}</h2><button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X size={24} /></button></div><form onSubmit={handleSubmit} className="p-6 space-y-6"><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Nome Prodotto</label><div className="relative"><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Latte" className="w-full text-xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 pr-12 bg-transparent" required /><MicButton onResult={(text) => setName(prev => prev ? prev + ' ' + text : text)} className="absolute right-2 top-1/2 -translate-y-1/2 z-20" /></div></div><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-2">Categoria</label><div className="flex flex-wrap gap-2">{categories.map(cat => ( <button key={cat} type="button" onClick={() => setCategory(cat)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${category === cat ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-indigo-500 hover:text-slate-200'}`}>{cat}</button> ))}{isAddingCategory ? ( <div className="flex items-center gap-1"><input ref={newCategoryInputRef} type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} onBlur={handleCreateCategory} onKeyDown={handleKeyDownCategory} placeholder="Nuova..." className="px-3 py-1.5 rounded-full text-xs font-medium border border-indigo-500 bg-slate-800 text-white outline-none w-24 placeholder-slate-500" /></div> ) : ( <button type="button" onClick={() => setIsAddingCategory(true)} className="px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-slate-600 text-slate-500 hover:border-slate-400 hover:text-slate-300 transition-all flex items-center gap-1"><Plus size={12} /> Nuova</button> )}</div></div><button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-500 transition-all flex justify-center gap-2">{initialData ? <Save size={20} /> : <Check size={20} />} {initialData ? 'Aggiorna' : 'Aggiungi'}</button></form></div></div>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-800 overflow-hidden animate-slide-up">
+        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900">
+          <h2 className="text-lg font-bold text-slate-100">{initialData ? 'Modifica Prodotto' : 'Nuovo Prodotto'}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X size={24} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Nome Prodotto</label>
+            <div className="relative">
+              <input 
+                type="text" 
+                value={name} 
+                onChange={(e) => setName(e.target.value)} 
+                placeholder="Es. Latte" 
+                className="w-full text-xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 pr-12 bg-transparent" 
+                required 
+              />
+              <MicButton onResult={(text) => setName(prev => prev ? prev + ' ' + text : text)} className="absolute right-2 top-1/2 -translate-y-1/2 z-20" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-2">Categoria</label>
+            <div className="flex flex-wrap gap-2">
+              {categories.map(cat => ( 
+                <button 
+                  key={cat} 
+                  type="button" 
+                  onClick={() => setCategory(cat)} 
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${category === cat ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-indigo-500 hover:text-slate-200'}`}
+                >
+                  {cat}
+                </button> 
+              ))}
+              {isAddingCategory ? ( 
+                <div className="flex items-center gap-1">
+                  <input 
+                    ref={newCategoryInputRef} 
+                    type="text" 
+                    value={newCategoryName} 
+                    onChange={(e) => setNewCategoryName(e.target.value)} 
+                    onBlur={handleCreateCategory} 
+                    onKeyDown={handleKeyDownCategory} 
+                    placeholder="Nuova..." 
+                    className="px-3 py-1.5 rounded-full text-xs font-medium border border-indigo-500 bg-slate-800 text-white outline-none w-24 placeholder-slate-500" 
+                  />
+                </div> 
+              ) : ( 
+                <button 
+                  type="button" 
+                  onClick={() => setIsAddingCategory(true)} 
+                  className="px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-slate-600 text-slate-500 hover:border-slate-400 hover:text-slate-300 transition-all flex items-center gap-1"
+                >
+                  <Plus size={12} /> Nuova
+                </button> 
+              )}
+            </div>
+          </div>
+          <button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-500 transition-all flex justify-center gap-2">
+            {initialData ? <Save size={20} /> : <Check size={20} />} {initialData ? 'Aggiorna' : 'Aggiungi'}
+          </button>
+        </form>
+      </div>
+    </div>
   );
 };
 
