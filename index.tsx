@@ -138,7 +138,8 @@ const WeatherWidget = () => {
         console.error(err);
         setError('Posizione negata');
         setLoading(false);
-      }
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
     );
   }, []);
 
@@ -963,7 +964,9 @@ const App = () => {
         const sortedAlerts = [...manualAlerts].sort((a, b) => {
             const timeA = new Date(`${a.date}T${a.time}`).getTime();
             const timeB = new Date(`${b.date}T${b.time}`).getTime();
-            return (isNaN(timeA) ? 0 : timeA) - (isNaN(timeB) ? 0 : timeB);
+            const valA = isNaN(timeA) ? 0 : timeA;
+            const valB = isNaN(timeB) ? 0 : timeB;
+            return valA - valB;
         });
         
         return (
@@ -1153,11 +1156,16 @@ const App = () => {
             </div>
             <button onClick={() => setIsSettingsOpen(true)} className="bg-slate-900 p-2 rounded-full border border-slate-800 text-slate-400 hover:text-white"><Settings size={20}/></button>
           </div>
-          <div className="flex gap-2 mb-2">
-            <StatsCard label="Entrate" amount={monthlyStats.totalIncome} type="income" onClick={() => setHistoryType('income')}/>
-            <StatsCard label="Uscite" amount={monthlyStats.totalExpense} type="expense" onClick={() => setHistoryType('expense')}/>
-          </div>
-          <StatsCard label="Saldo" amount={monthlyStats.balance} type="balance" onClick={() => setIsBalanceHidden(!isBalanceHidden)} isHidden={isBalanceHidden}/>
+          
+          {activeTab === 'home' && (
+            <div className="animate-fade-in">
+                <div className="flex gap-2 mb-2">
+                    <StatsCard label="Entrate" amount={monthlyStats.totalIncome} type="income" onClick={() => setHistoryType('income')}/>
+                    <StatsCard label="Uscite" amount={monthlyStats.totalExpense} type="expense" onClick={() => setHistoryType('expense')}/>
+                </div>
+                <StatsCard label="Saldo" amount={monthlyStats.balance} type="balance" onClick={() => setIsBalanceHidden(!isBalanceHidden)} isHidden={isBalanceHidden}/>
+            </div>
+          )}
         </header>
 
         <main className="px-4 space-y-6">{renderContent()}</main>
