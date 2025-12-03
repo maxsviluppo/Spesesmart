@@ -4,7 +4,7 @@ import {
   Plus, Home, ShoppingCart, ListTodo, Bell, BarChart3, 
   Wallet, PieChart, ArrowRight, Sparkles, CheckCircle2, Circle, Trash2, AlertTriangle, Info,
   ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut, Calendar, Clock, User, Key, Lock, ExternalLink, ChevronDown, ChevronUp, Mail,
-  Sun, Cloud, CloudRain, CloudSnow, CloudLightning, MapPin, Droplets, ThermometerSun
+  Sun, Cloud, CloudRain, CloudSnow, CloudLightning, MapPin, Droplets, ThermometerSun, Smartphone, Layout
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
@@ -447,7 +447,7 @@ const AddModal = ({ isOpen, onClose, onSave, initialData, expenseCategories, inc
 };
 
 // Settings Modal
-const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, apiKey, setApiKey }: any) => {
+const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, apiKey, setApiKey, notificationsEnabled, setNotificationsEnabled, startUpTab, setStartUpTab, onSaveSettings }: any) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
@@ -458,6 +458,38 @@ const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, ap
         </div>
         <div className="p-6 space-y-8">
           
+          {/* GENERALI */}
+          <div className="space-y-3">
+             <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Layout size={14}/> Generali</h3>
+             
+             {/* Startup Page */}
+             <div className="flex items-center justify-between bg-slate-950 p-3 rounded-lg border border-slate-800">
+               <span className="text-sm text-slate-300">Pagina di Avvio</span>
+               <select 
+                 value={startUpTab} 
+                 onChange={(e) => setStartUpTab(e.target.value)}
+                 className="bg-slate-800 text-white text-xs p-2 rounded border border-slate-700 outline-none"
+               >
+                 <option value="home">Wallet</option>
+                 <option value="shopping">Spesa</option>
+                 <option value="doit">Do It</option>
+                 <option value="alerts">Avvisi</option>
+                 <option value="reports">Grafico</option>
+               </select>
+             </div>
+
+             {/* Notifications */}
+             <div className="flex items-center justify-between bg-slate-950 p-3 rounded-lg border border-slate-800">
+               <span className="text-sm text-slate-300 flex items-center gap-2"><Smartphone size={16}/> Notifiche Push</span>
+               <button 
+                  onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+                  className={`w-10 h-6 rounded-full relative transition-colors ${notificationsEnabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+               >
+                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notificationsEnabled ? 'left-5' : 'left-1'}`}></div>
+               </button>
+             </div>
+          </div>
+
           {/* PROFILO */}
           <div className="space-y-3">
              <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><User size={14}/> Profilo</h3>
@@ -505,6 +537,14 @@ const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, ap
              </div>
           </div>
 
+          {/* SAVE BUTTON */}
+          <button 
+             onClick={onSaveSettings}
+             className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-500 transition-all flex items-center justify-center gap-2"
+          >
+             <Save size={20} /> Salva Impostazioni
+          </button>
+
           {/* DANGER ZONE */}
           <div className="pt-4 border-t border-slate-800">
             <button onClick={onClearData} className="w-full py-3 bg-red-900/20 text-red-400 border border-red-900/50 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-900/30 transition-colors">
@@ -521,7 +561,10 @@ const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, ap
 // --- MAIN APP ---
 
 const App = () => {
-  const [activeTab, setActiveTab] = useState<'home' | 'shopping' | 'doit' | 'alerts' | 'reports'>('home');
+  // Load Preferences
+  const [startUpTab, setStartUpTab] = useState(() => localStorage.getItem('startUpTab') || 'home');
+  const [notificationsEnabled, setNotificationsEnabled] = useState(() => localStorage.getItem('notificationsEnabled') === 'true');
+  const [activeTab, setActiveTab] = useState<'home' | 'shopping' | 'doit' | 'alerts' | 'reports'>(startUpTab as any);
   
   // State
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
@@ -606,6 +649,12 @@ const App = () => {
   useEffect(() => { localStorage.setItem('incomeCategories', JSON.stringify(incomeCategories)); }, [incomeCategories]);
   useEffect(() => { localStorage.setItem('userName', userName); }, [userName]);
   useEffect(() => { localStorage.setItem('userApiKey', userApiKey); }, [userApiKey]);
+
+  const handleSaveSettings = () => {
+    localStorage.setItem('startUpTab', startUpTab);
+    localStorage.setItem('notificationsEnabled', String(notificationsEnabled));
+    setIsSettingsOpen(false);
+  };
 
   // Derived
   const monthlyStats = useMemo(() => {
@@ -720,6 +769,10 @@ const App = () => {
      setNewAlertTime(alert.time);
      setIsAddingAlert(true);
   };
+  
+  const deleteAlert = (id: string) => {
+    setManualAlerts(p => p.filter(a => a.id !== id));
+  }
 
   const toggleAlertComplete = (id: string) => {
      setManualAlerts(p => p.map(a => a.id === id ? { ...a, completed: !a.completed } : a));
@@ -850,14 +903,14 @@ const App = () => {
                     <VoiceInput onResult={setNewAlertMsg} />
                  </div>
                  
-                 <div className="flex gap-3">
-                    <div className="relative w-1/2">
-                        <input type="date" value={newAlertDate} onChange={e => setNewAlertDate(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-xs text-white rounded-lg px-3 py-3 outline-none focus:border-indigo-500 uppercase tracking-wide"/>
-                        {/* <Calendar className="absolute right-3 top-3 text-indigo-500 pointer-events-none" size={14}/> */}
+                 <div className="flex gap-4">
+                    <div className="flex-1">
+                        <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Data</label>
+                        <input type="date" value={newAlertDate} onChange={e => setNewAlertDate(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-sm text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500"/>
                     </div>
-                    <div className="relative w-1/2">
-                        <input type="time" value={newAlertTime} onChange={e => setNewAlertTime(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-xs text-white rounded-lg px-3 py-3 outline-none focus:border-indigo-500 uppercase tracking-wide"/>
-                        {/* <Clock className="absolute right-3 top-3 text-indigo-500 pointer-events-none" size={14}/> */}
+                    <div className="flex-1">
+                        <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Ora</label>
+                        <input type="time" value={newAlertTime} onChange={e => setNewAlertTime(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-sm text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500"/>
                     </div>
                  </div>
 
@@ -872,7 +925,7 @@ const App = () => {
              {manualAlerts.map(a => (
                <SwipeableItem 
                    key={a.id} 
-                   onSwipeLeft={() => setManualAlerts(p => p.filter(x => x.id !== a.id))}
+                   onSwipeLeft={() => deleteAlert(a.id)}
                    onSwipeRight={() => startEditingAlert(a)}
                    rightLabel="Modifica"
                    rightIcon={<Edit2 size={24}/>}
@@ -916,7 +969,7 @@ const App = () => {
         <header className="px-6 pt-12 pb-6 bg-gradient-to-b from-indigo-950/20 to-slate-950">
           <div className="flex justify-between items-start mb-6">
             <div>
-                <h1 className="text-2xl font-black text-white">Wallet</h1>
+                <h1 className="text-2xl font-black text-cyan-400">Spese Smart</h1>
                 {userName && <p className="text-xs text-indigo-400 font-medium">Ciao, {userName}</p>}
             </div>
             <button onClick={() => setIsSettingsOpen(true)} className="bg-slate-900 p-2 rounded-full border border-slate-800 text-slate-400 hover:text-white"><Settings size={20}/></button>
@@ -928,15 +981,17 @@ const App = () => {
         <main className="px-4 space-y-6">{renderContent()}</main>
 
         {/* FAB */}
-        <div className="fixed bottom-24 right-4 z-50">
-          <button onClick={() => { setEditingTransaction(null); setIsAddModalOpen(true); }} className="w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-600/40 hover:scale-105 transition-all"><Plus size={28}/></button>
-        </div>
+        {activeTab === 'home' && (
+          <div className="fixed bottom-24 right-4 z-50 animate-slide-up">
+            <button onClick={() => { setEditingTransaction(null); setIsAddModalOpen(true); }} className="w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-600/40 hover:scale-105 transition-all"><Plus size={28}/></button>
+          </div>
+        )}
 
         {/* Navbar with safe area padding */}
         <nav className="fixed bottom-0 left-0 right-0 bg-[#0E1629]/95 backdrop-blur-xl border-t border-slate-800 pb-[env(safe-area-inset-bottom)] z-40 max-w-lg mx-auto">
           <div className="flex justify-around items-center h-16">
               {[
-                {id:'home', icon:Home, l:'Home'}, {id:'shopping', icon:ShoppingCart, l:'Spesa'}, 
+                {id:'home', icon:Wallet, l:'Wallet'}, {id:'shopping', icon:ShoppingCart, l:'Spesa'}, 
                 {id:'doit', icon:ListTodo, l:'Do It'}, {id:'alerts', icon:Bell, l:'Avvisi'}, {id:'reports', icon:PieChart, l:'Grafico'}
               ].map(i => (
                 <button key={i.id} onClick={() => setActiveTab(i.id as any)} className={`flex flex-col items-center justify-center w-14 ${activeTab === i.id ? 'text-indigo-400' : 'text-slate-500'}`}>
@@ -955,6 +1010,11 @@ const App = () => {
             setUserName={setUserName}
             apiKey={userApiKey}
             setApiKey={setUserApiKey}
+            notificationsEnabled={notificationsEnabled}
+            setNotificationsEnabled={setNotificationsEnabled}
+            startUpTab={startUpTab}
+            setStartUpTab={setStartUpTab}
+            onSaveSettings={handleSaveSettings}
         />
       </div>
     </div>
