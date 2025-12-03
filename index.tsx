@@ -98,23 +98,44 @@ const getFinancialAdvice = async (transactions: Transaction[], month: string, us
 // Voice Input Component
 const VoiceInput = ({ onResult }: { onResult: (text: string) => void }) => {
   const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   const startListening = () => {
     if (!('webkitSpeechRecognition' in window)) {
       alert("Il tuo browser non supporta la dettatura vocale.");
       return;
     }
+
+    // Stop previous instance if exists
+    if (recognitionRef.current) {
+        recognitionRef.current.stop();
+    }
+
     const recognition = new (window as any).webkitSpeechRecognition();
+    recognitionRef.current = recognition;
+    
     recognition.lang = 'it-IT';
     recognition.continuous = false;
     recognition.interimResults = false;
 
     recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => setIsListening(false);
+    
+    recognition.onend = () => {
+        setIsListening(false);
+    };
+
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
       onResult(transcript);
+      recognition.stop(); // Immediately stop listening after result
+      setIsListening(false);
     };
+
+    recognition.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        setIsListening(false);
+    };
+
     recognition.start();
   };
 
@@ -122,7 +143,7 @@ const VoiceInput = ({ onResult }: { onResult: (text: string) => void }) => {
     <button 
       type="button"
       onClick={startListening} 
-      className={`p-3 rounded-xl transition-all flex items-center justify-center ${isListening ? 'bg-red-600 text-white animate-pulse' : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'}`}
+      className={`p-3 rounded-xl transition-all flex items-center justify-center ${isListening ? 'bg-red-600 text-white animate-pulse shadow-lg shadow-red-900/50' : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'}`}
     >
       <Mic size={20} />
     </button>
@@ -622,20 +643,26 @@ const App = () => {
            
            <div>
              <h3 className="font-bold text-white mb-3 flex gap-2"><Edit2 className="text-indigo-400"/> I miei Promemoria</h3>
-             <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 mb-4 space-y-3">
-                 <div className="flex gap-2">
-                    <input value={newAlertMsg} onChange={e => setNewAlertMsg(e.target.value)} placeholder="Messaggio avviso..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none placeholder-slate-600 text-sm"/>
+             <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 mb-4 space-y-4">
+                 <div className="flex gap-2 items-center">
+                    <input value={newAlertMsg} onChange={e => setNewAlertMsg(e.target.value)} placeholder="Messaggio avviso..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-3 text-white outline-none placeholder-slate-600 text-sm"/>
                     <VoiceInput onResult={setNewAlertMsg} />
                  </div>
-                 <div className="flex gap-2">
-                    <div className="relative flex-1">
+                 
+                 <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                        <label className="text-[10px] text-slate-500 uppercase font-bold">Data</label>
                         <input type="date" value={newAlertDate} onChange={e => setNewAlertDate(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none text-xs h-10 accent-indigo-600"/>
                     </div>
-                    <div className="relative w-24">
+                    <div className="space-y-1">
+                        <label className="text-[10px] text-slate-500 uppercase font-bold">Ora</label>
                         <input type="time" value={newAlertTime} onChange={e => setNewAlertTime(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none text-xs h-10 accent-indigo-600"/>
                     </div>
-                    <button onClick={handleAddAlert} className="bg-indigo-600 text-white w-10 h-10 rounded-lg flex items-center justify-center hover:bg-indigo-500"><Plus size={20}/></button>
                  </div>
+
+                 <button onClick={handleAddAlert} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-indigo-500 flex items-center justify-center gap-2">
+                    <Plus size={18}/> Aggiungi Promemoria
+                 </button>
              </div>
 
              {manualAlerts.map(a => (
