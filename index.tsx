@@ -106,7 +106,6 @@ const VoiceInput = ({ onResult }: { onResult: (text: string) => void }) => {
       return;
     }
 
-    // Stop previous instance if exists
     if (recognitionRef.current) {
         recognitionRef.current.stop();
     }
@@ -125,10 +124,17 @@ const VoiceInput = ({ onResult }: { onResult: (text: string) => void }) => {
     };
 
     recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      onResult(transcript);
-      recognition.stop(); // Immediately stop listening after result
+      if (event.results && event.results[0] && event.results[0][0]) {
+        const transcript = event.results[0][0].transcript;
+        onResult(transcript);
+      }
+      recognition.stop();
       setIsListening(false);
+    };
+
+    // Stop automatically when user stops speaking to release system
+    recognition.onspeechend = () => {
+       recognition.stop();
     };
 
     recognition.onerror = (event: any) => {
@@ -143,7 +149,7 @@ const VoiceInput = ({ onResult }: { onResult: (text: string) => void }) => {
     <button 
       type="button"
       onClick={startListening} 
-      className={`p-3 rounded-xl transition-all flex items-center justify-center ${isListening ? 'bg-red-600 text-white animate-pulse shadow-lg shadow-red-900/50' : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'}`}
+      className={`p-3 rounded-xl transition-all flex items-center justify-center shrink-0 ${isListening ? 'bg-red-600 text-white animate-pulse shadow-lg shadow-red-900/50' : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'}`}
     >
       <Mic size={20} />
     </button>
@@ -643,24 +649,24 @@ const App = () => {
            
            <div>
              <h3 className="font-bold text-white mb-3 flex gap-2"><Edit2 className="text-indigo-400"/> I miei Promemoria</h3>
-             <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 mb-4 space-y-4">
+             <div className="bg-slate-900/50 p-5 rounded-xl border border-slate-800 mb-4 space-y-4">
                  <div className="flex gap-2 items-center">
-                    <input value={newAlertMsg} onChange={e => setNewAlertMsg(e.target.value)} placeholder="Messaggio avviso..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-3 text-white outline-none placeholder-slate-600 text-sm"/>
+                    <input value={newAlertMsg} onChange={e => setNewAlertMsg(e.target.value)} placeholder="Messaggio avviso..." className="flex-1 bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-lg px-4 py-3 text-white outline-none placeholder-slate-600 text-sm transition-colors"/>
                     <VoiceInput onResult={setNewAlertMsg} />
                  </div>
                  
-                 <div className="grid grid-cols-2 gap-3">
+                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                        <label className="text-[10px] text-slate-500 uppercase font-bold">Data</label>
-                        <input type="date" value={newAlertDate} onChange={e => setNewAlertDate(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none text-xs h-10 accent-indigo-600"/>
+                        <label className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1"><Calendar size={10}/> Data</label>
+                        <input type="date" value={newAlertDate} onChange={e => setNewAlertDate(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-lg px-3 py-3 text-white outline-none text-xs accent-indigo-600 transition-colors"/>
                     </div>
                     <div className="space-y-1">
-                        <label className="text-[10px] text-slate-500 uppercase font-bold">Ora</label>
-                        <input type="time" value={newAlertTime} onChange={e => setNewAlertTime(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none text-xs h-10 accent-indigo-600"/>
+                        <label className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1"><Clock size={10}/> Ora</label>
+                        <input type="time" value={newAlertTime} onChange={e => setNewAlertTime(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-lg px-3 py-3 text-white outline-none text-xs accent-indigo-600 transition-colors"/>
                     </div>
                  </div>
 
-                 <button onClick={handleAddAlert} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-indigo-500 flex items-center justify-center gap-2">
+                 <button onClick={handleAddAlert} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-indigo-500 flex items-center justify-center gap-2 mt-2">
                     <Plus size={18}/> Aggiungi Promemoria
                  </button>
              </div>
