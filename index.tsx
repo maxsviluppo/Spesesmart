@@ -47,7 +47,10 @@ import {
   Key,
   ExternalLink,
   Eye,
-  EyeOff
+  EyeOff,
+  Loader2,
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -220,6 +223,30 @@ export const getFinancialAdvice = async (transactions: Transaction[], month: str
     }
     return "Si è verificato un errore durante l'analisi dei dati. Riprova più tardi.";
   }
+};
+
+// --- COMPONENT: Toast ---
+interface ToastProps {
+  message: string;
+  type: 'success' | 'error' | 'info';
+  onClose: () => void;
+}
+
+const Toast: React.FC<ToastProps> = ({ message, type, onClose }) => {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 3000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  const bgClass = type === 'success' ? 'bg-emerald-600' : type === 'error' ? 'bg-red-600' : 'bg-indigo-600';
+  const icon = type === 'success' ? <CheckCircle2 size={20} /> : type === 'error' ? <AlertCircle size={20} /> : <Info size={20} />;
+
+  return (
+    <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] flex items-center gap-3 px-6 py-3 rounded-full shadow-2xl shadow-black/50 text-white font-bold animate-slide-up ${bgClass} border border-white/10`}>
+      {icon}
+      <span className="text-sm">{message}</span>
+    </div>
+  );
 };
 
 // --- COMPONENT: TransactionItem ---
@@ -554,19 +581,25 @@ interface SettingsModalProps {
   settings: UserSettings;
   onUpdateSettings: (newSettings: UserSettings) => void;
   onReset: () => void;
+  onShowToast: (message: string, type: 'success' | 'error' | 'info') => void;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onUpdateSettings, onReset }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onUpdateSettings, onReset, onShowToast }) => {
   const [localName, setLocalName] = useState(settings.userName);
   const [localApiKey, setLocalApiKey] = useState(settings.apiKey || '');
   const [showApiKey, setShowApiKey] = useState(false);
   const [resetStep, setResetStep] = useState(0);
+  
+  // Verification State
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   useEffect(() => {
     if (isOpen) {
       setLocalName(settings.userName);
       setLocalApiKey(settings.apiKey || '');
       setResetStep(0);
+      setVerificationStatus('idle');
     }
   }, [isOpen, settings]);
 
@@ -578,7 +611,39 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
       userName: localName,
       apiKey: localApiKey.trim() 
     });
+    onShowToast('Preferenze salvate con successo!', 'success');
     onClose();
+  };
+
+  const handleVerifyApiKey = async () => {
+    if (!localApiKey.trim()) {
+      onShowToast("Inserisci una chiave API prima di verificare.", "error");
+      return;
+    }
+
+    setIsVerifying(true);
+    setVerificationStatus('idle');
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: localApiKey.trim() });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: 'Hello',
+      });
+      
+      if (response && response.text) {
+         setVerificationStatus('success');
+         onShowToast("API Key valida! Connessione a Gemini riuscita.", "success");
+      } else {
+         throw new Error("No response");
+      }
+    } catch (error) {
+      console.error("Verification failed", error);
+      setVerificationStatus('error');
+      onShowToast("API Key non valida o errore di connessione.", "error");
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   return (
@@ -629,25 +694,50 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
               <p className="text-xs text-slate-400 leading-relaxed">
                 Per generare report intelligenti, SpeseSmart utilizza Google Gemini. Inserisci la tua chiave API personale qui sotto.
               </p>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                  <Key size={16} />
+              
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                    <Key size={16} />
+                  </div>
+                  <input 
+                    type={showApiKey ? "text" : "password"}
+                    value={localApiKey}
+                    onChange={(e) => {
+                      setLocalApiKey(e.target.value);
+                      setVerificationStatus('idle'); // Reset status on edit
+                    }}
+                    placeholder="Incolla la tua API Key qui"
+                    className={`w-full bg-slate-900 border ${verificationStatus === 'success' ? 'border-emerald-500/50' : verificationStatus === 'error' ? 'border-red-500/50' : 'border-slate-700'} rounded-lg py-3 pl-10 pr-10 text-sm text-slate-200 outline-none focus:border-indigo-500 transition-all placeholder-slate-600 font-mono`}
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300"
+                  >
+                    {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
-                <input 
-                  type={showApiKey ? "text" : "password"}
-                  value={localApiKey}
-                  onChange={(e) => setLocalApiKey(e.target.value)}
-                  placeholder="Incolla la tua API Key qui"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg py-3 pl-10 pr-10 text-sm text-slate-200 outline-none focus:border-indigo-500 transition-all placeholder-slate-600 font-mono"
-                />
+                
                 <button 
-                  type="button"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300"
+                  onClick={handleVerifyApiKey}
+                  disabled={isVerifying || !localApiKey}
+                  className={`px-4 rounded-lg font-bold text-xs transition-all flex items-center gap-2 ${
+                    verificationStatus === 'success' ? 'bg-emerald-600 text-white' :
+                    verificationStatus === 'error' ? 'bg-red-600 text-white' :
+                    'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
                 >
-                  {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {isVerifying ? <Loader2 size={16} className="animate-spin" /> : 
+                   verificationStatus === 'success' ? <CheckCircle2 size={16} /> :
+                   verificationStatus === 'error' ? <XCircle size={16} /> :
+                   "Verifica"}
                 </button>
               </div>
+
+              {verificationStatus === 'success' && <p className="text-[10px] text-emerald-400 font-bold flex items-center gap-1"><CheckCircle2 size={10} /> Chiave valida e funzionante</p>}
+              {verificationStatus === 'error' && <p className="text-[10px] text-red-400 font-bold flex items-center gap-1"><XCircle size={10} /> Chiave non valida</p>}
+
               <a 
                 href="https://aistudio.google.com/app/apikey" 
                 target="_blank" 
@@ -1054,6 +1144,15 @@ const AddModal: React.FC<{isOpen: boolean, onClose: () => void, onSave: (amount:
 // --- APP COMPONENT ---
 
 function App() {
+  // Toast State
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('info');
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToastMessage(message);
+    setToastType(type);
+  };
+
   // State Settings
   const [userSettings, setUserSettings] = useState<UserSettings>(() => {
     const saved = localStorage.getItem('spesesmart_settings');
@@ -1243,7 +1342,7 @@ function App() {
        }).catch(console.error);
      } else {
        navigator.clipboard.writeText(text);
-       alert("Copiato negli appunti!");
+       showToast("Copiato negli appunti!", "success");
      }
   };
 
@@ -1344,6 +1443,16 @@ function App() {
 
   return (
     <div className="min-h-screen pb-24 max-w-lg mx-auto bg-[#0E1629] border-x border-slate-800 shadow-2xl overflow-hidden relative text-slate-200">
+      
+      {/* Toast Notification */}
+      {toastMessage && (
+        <Toast 
+          message={toastMessage} 
+          type={toastType} 
+          onClose={() => setToastMessage(null)} 
+        />
+      )}
+
       <header className="bg-[#0E1629]/90 backdrop-blur-xl sticky top-0 z-30 border-b border-white/5 flex flex-col transition-all duration-300">
         {/* Top Row: App Name & Settings */}
         <div className="px-6 pt-5 pb-3 flex items-center justify-between">
@@ -1594,7 +1703,7 @@ function App() {
       <AddModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveTransaction} initialData={editingTransaction} expenseCategories={expenseCategories} incomeCategories={incomeCategories} onAddCategory={handleAddCategory} />
       <ShoppingModal isOpen={isShoppingModalOpen} onClose={() => setIsShoppingModalOpen(false)} onSave={handleSaveShoppingItem} initialData={editingShoppingItem} categories={shoppingCategories} onAddCategory={handleAddShoppingCategory} />
       <AlertModal isOpen={isAlertModalOpen} onClose={() => setIsAlertModalOpen(false)} onSave={handleSaveAlert} initialData={editingAlert} />
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={userSettings} onUpdateSettings={setUserSettings} onReset={handleResetData} />
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={userSettings} onUpdateSettings={setUserSettings} onReset={handleResetData} onShowToast={showToast} />
       <TaskModal isOpen={isTaskModalOpen} onClose={() => setIsTaskModalOpen(false)} onSave={handleSaveTask} task={editingTask} />
 
       {/* Nav */}
