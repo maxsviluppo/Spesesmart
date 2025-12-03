@@ -4,7 +4,7 @@ import {
   Plus, Home, ShoppingCart, ListTodo, Bell, BarChart3, 
   Wallet, PieChart, ArrowRight, Sparkles, CheckCircle2, Circle, Trash2, AlertTriangle, Info,
   ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut, Calendar, Clock, User, Key, Lock, ExternalLink, ChevronDown, ChevronUp, Mail,
-  Sun, Cloud, CloudRain, CloudSnow, CloudLightning, MapPin, Droplets, ThermometerSun, Smartphone, Layout
+  Sun, Cloud, CloudRain, CloudSnow, CloudLightning, MapPin, Droplets, ThermometerSun, Smartphone, Layout, Volume2
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
@@ -447,7 +447,7 @@ const AddModal = ({ isOpen, onClose, onSave, initialData, expenseCategories, inc
 };
 
 // Settings Modal
-const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, apiKey, setApiKey, notificationsEnabled, setNotificationsEnabled, startUpTab, setStartUpTab, onSaveSettings }: any) => {
+const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, apiKey, setApiKey, notificationsEnabled, setNotificationsEnabled, startUpTab, setStartUpTab, onSaveSettings, alarmVolume, setAlarmVolume, onTestSound }: any) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
@@ -479,14 +479,41 @@ const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, ap
              </div>
 
              {/* Notifications */}
-             <div className="flex items-center justify-between bg-slate-950 p-3 rounded-lg border border-slate-800">
-               <span className="text-sm text-slate-300 flex items-center gap-2"><Smartphone size={16}/> Notifiche Push</span>
-               <button 
-                  onClick={() => setNotificationsEnabled(!notificationsEnabled)}
-                  className={`w-10 h-6 rounded-full relative transition-colors ${notificationsEnabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
-               >
-                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notificationsEnabled ? 'left-5' : 'left-1'}`}></div>
-               </button>
+             <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
+               <div className="flex items-center justify-between">
+                 <span className="text-sm text-slate-300 flex items-center gap-2"><Smartphone size={16}/> Notifiche Push</span>
+                 <button 
+                    onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+                    className={`w-10 h-6 rounded-full relative transition-colors ${notificationsEnabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                 >
+                   <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notificationsEnabled ? 'left-5' : 'left-1'}`}></div>
+                 </button>
+               </div>
+               
+               {/* Volume Control */}
+               {notificationsEnabled && (
+                   <div className="mt-4 pt-3 border-t border-slate-800 space-y-2 animate-fade-in">
+                       <div className="flex justify-between items-center">
+                           <span className="text-xs text-slate-400 flex items-center gap-2"><Volume2 size={12}/> Volume Suoni</span>
+                           <span className="text-xs font-bold text-indigo-400">{Math.round(alarmVolume * 100)}%</span>
+                       </div>
+                       <input 
+                           type="range" 
+                           min="0" 
+                           max="1" 
+                           step="0.05" 
+                           value={alarmVolume} 
+                           onChange={(e) => setAlarmVolume(parseFloat(e.target.value))}
+                           className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                       />
+                       <button 
+                           onClick={onTestSound}
+                           className="text-[10px] text-slate-500 hover:text-indigo-400 flex items-center gap-1 mt-1 transition-colors"
+                       >
+                           <Volume2 size={10}/> Prova suono
+                       </button>
+                   </div>
+               )}
              </div>
           </div>
 
@@ -564,6 +591,7 @@ const App = () => {
   // Load Preferences
   const [startUpTab, setStartUpTab] = useState(() => localStorage.getItem('startUpTab') || 'home');
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => localStorage.getItem('notificationsEnabled') === 'true');
+  const [alarmVolume, setAlarmVolume] = useState(() => parseFloat(localStorage.getItem('alarmVolume') || '0.5'));
   const [activeTab, setActiveTab] = useState<'home' | 'shopping' | 'doit' | 'alerts' | 'reports'>(startUpTab as any);
   
   // State
@@ -649,11 +677,38 @@ const App = () => {
   useEffect(() => { localStorage.setItem('incomeCategories', JSON.stringify(incomeCategories)); }, [incomeCategories]);
   useEffect(() => { localStorage.setItem('userName', userName); }, [userName]);
   useEffect(() => { localStorage.setItem('userApiKey', userApiKey); }, [userApiKey]);
+  useEffect(() => { localStorage.setItem('alarmVolume', alarmVolume.toString()); }, [alarmVolume]);
 
   const handleSaveSettings = () => {
     localStorage.setItem('startUpTab', startUpTab);
     localStorage.setItem('notificationsEnabled', String(notificationsEnabled));
     setIsSettingsOpen(false);
+  };
+
+  const playAlarmSound = (vol: number = alarmVolume) => {
+    try {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContext) return;
+        
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(440, ctx.currentTime + 0.3);
+
+        gain.gain.setValueAtTime(vol, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+
+        osc.start();
+        osc.stop(ctx.currentTime + 0.5);
+    } catch (e) {
+        console.error("Audio play error", e);
+    }
   };
 
   // Derived
@@ -1016,6 +1071,9 @@ const App = () => {
             startUpTab={startUpTab}
             setStartUpTab={setStartUpTab}
             onSaveSettings={handleSaveSettings}
+            alarmVolume={alarmVolume}
+            setAlarmVolume={setAlarmVolume}
+            onTestSound={() => playAlarmSound(alarmVolume)}
         />
       </div>
     </div>
