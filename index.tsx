@@ -424,6 +424,180 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
   );
 };
 
+// --- COMPONENT: TaskItem ---
+interface TaskItemProps {
+  task: Task;
+  onToggle: (id: string) => void;
+  onDelete: (id: string) => void;
+}
+
+const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle, onDelete }) => {
+  // Swipe Logic State
+  const [startX, setStartX] = useState<number | null>(null);
+  const [currentX, setCurrentX] = useState<number>(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+    };
+  }, []);
+
+  // Constants
+  const DELETE_THRESHOLD = 150;
+
+  // Touch Handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (isConfirmingDelete) return;
+    setStartX(e.touches[0].clientX);
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (startX === null || isDeleting || isConfirmingDelete) return;
+    const x = e.touches[0].clientX;
+    const diff = x - startX;
+    
+    // Allow swipe LEFT only (for delete)
+    if (diff < 0) {
+      setCurrentX(diff);
+    } else {
+      // Rubber band right (no action)
+      setCurrentX(diff * 0.2); 
+    }
+  };
+
+  const handleTouchEnd = () => {
+    handleSwipeEnd();
+  };
+
+  // Mouse Handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (isConfirmingDelete) return;
+    setStartX(e.clientX);
+    setIsDragging(true);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || startX === null || isDeleting || isConfirmingDelete) return;
+    e.preventDefault();
+    const x = e.clientX;
+    const diff = x - startX;
+    if (diff < 0) {
+      setCurrentX(diff);
+    } else {
+      setCurrentX(diff * 0.2);
+    }
+  };
+
+  const handleMouseUp = () => {
+    handleSwipeEnd();
+  };
+
+  const handleMouseLeave = () => {
+    if (isDragging) handleSwipeEnd();
+  };
+
+  const handleSwipeEnd = () => {
+    setIsDragging(false);
+    if (currentX < -DELETE_THRESHOLD) {
+      handleStartDeleteSequence();
+    } else {
+      setCurrentX(0);
+    }
+    setStartX(null);
+  };
+
+  const handleStartDeleteSequence = () => {
+      if (navigator.vibrate) navigator.vibrate(50);
+      setIsConfirmingDelete(true);
+      setCurrentX(0); 
+      deleteTimerRef.current = setTimeout(() => {
+          performFinalDelete();
+      }, 3000);
+  };
+
+  const performFinalDelete = () => {
+      setIsDeleting(true); 
+      setTimeout(() => onDelete(task.id), 300);
+  };
+
+  const handleUndo = () => {
+      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+      setIsConfirmingDelete(false);
+      setCurrentX(0);
+  };
+
+  if (isDeleting) {
+      return <div className="min-h-[72px] mb-3 w-full bg-transparent transition-all duration-300 opacity-0 transform -translate-x-full"></div>;
+  }
+
+  // Undo View
+  if (isConfirmingDelete) {
+    return (
+      <div className="relative mb-3 min-h-[72px] w-full bg-red-950/40 border border-red-900/50 rounded-xl flex items-center justify-between px-6 animate-fade-in overflow-hidden">
+        <div className="absolute bottom-0 left-0 h-1 bg-red-600/50 w-full animate-[shrink_3s_linear_forwards] origin-left" style={{ animationName: 'shrinkWidth' }}></div>
+        <style>{`@keyframes shrinkWidth { from { width: 100%; } to { width: 0%; } }`}</style>
+
+        <div className="flex items-center gap-2 text-red-400">
+           <Trash2 size={20} />
+           <span className="font-medium text-sm">Eliminato</span>
+        </div>
+        
+        <button onClick={handleUndo} className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm border border-slate-700 transition-colors z-10">
+          <RotateCcw size={16} />
+          Annulla
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div 
+      className="relative mb-3 w-full min-h-[72px] overflow-hidden rounded-xl select-none touch-pan-y"
+      onMouseLeave={handleMouseLeave}
+      onMouseUp={handleMouseUp}
+      style={{ touchAction: 'pan-y' }}
+    >
+      {/* Background Layer (Delete only) */}
+      <div className={`absolute inset-0 flex items-center justify-end px-6 transition-colors ${currentX < 0 ? 'bg-red-600' : 'bg-slate-900'}`}>
+        <div className="flex items-center gap-2 text-white font-bold transition-opacity duration-200" style={{ opacity: currentX < -30 ? 1 : 0 }}>
+          <span>Elimina</span>
+          <Trash2 size={24} />
+        </div>
+      </div>
+
+      {/* Foreground Layer */}
+      <div 
+        className={`relative h-full bg-slate-900 flex items-center gap-4 p-4 border border-slate-800 rounded-xl transition-all duration-300 ${task.completed ? 'opacity-60 bg-slate-950/50 border-slate-900' : ''}`}
+        style={{ 
+          transform: `translateX(${currentX}px)`,
+          transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)' 
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+      >
+        <button 
+          onClick={(e) => { e.stopPropagation(); onToggle(task.id); }}
+          className={`min-w-[24px] h-6 rounded-md border flex items-center justify-center transition-all z-10 ${task.completed ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-600 hover:border-indigo-500'}`}
+        >
+          {task.completed && <Check size={16} strokeWidth={3} />}
+        </button>
+        
+        <span className={`flex-1 font-medium pointer-events-none transition-all ${task.completed ? 'text-slate-600 line-through' : 'text-slate-200'}`}>
+          {task.text}
+        </span>
+      </div>
+    </div>
+  );
+};
+
 // --- COMPONENT: AddModal ---
 interface AddModalProps {
   isOpen: boolean;
@@ -1127,30 +1301,18 @@ function App() {
 
              {/* Task List */}
              <div className="space-y-3">
+               <div className="flex items-center gap-2 mb-2 px-2">
+                  <Info size={12} className="text-slate-600" />
+                  <span className="text-[10px] text-slate-600 uppercase tracking-wider">Scorri verso SX per Eliminare</span>
+               </div>
                {tasks.length > 0 ? (
                  tasks.sort((a,b) => (a.completed === b.completed ? 0 : a.completed ? 1 : -1)).map(task => (
-                   <div 
-                    key={task.id} 
-                    className={`flex items-center gap-4 p-4 rounded-xl border transition-all duration-300 ${task.completed ? 'bg-slate-950/50 border-slate-900 opacity-60' : 'bg-slate-900 border-slate-800'}`}
-                   >
-                     <button 
-                      onClick={() => handleToggleTask(task.id)}
-                      className={`min-w-[24px] h-6 rounded-md border flex items-center justify-center transition-all ${task.completed ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-600 hover:border-indigo-500'}`}
-                     >
-                       {task.completed && <Check size={16} strokeWidth={3} />}
-                     </button>
-                     
-                     <span className={`flex-1 font-medium transition-all ${task.completed ? 'text-slate-600 line-through' : 'text-slate-200'}`}>
-                       {task.text}
-                     </span>
-
-                     <button 
-                      onClick={() => handleDeleteTask(task.id)}
-                      className="text-slate-600 hover:text-red-400 transition-colors p-2"
-                     >
-                       <Trash2 size={18} />
-                     </button>
-                   </div>
+                   <TaskItem
+                     key={task.id}
+                     task={task}
+                     onToggle={handleToggleTask}
+                     onDelete={handleDeleteTask}
+                   />
                  ))
                ) : (
                  <div className="text-center py-20 opacity-50 flex flex-col items-center">
