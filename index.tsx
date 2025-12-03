@@ -230,19 +230,102 @@ interface MicButtonProps {
 
 const MicButton: React.FC<MicButtonProps> = ({ onResult, className = "" }) => {
   const [isListening, setIsListening] = useState(false);
+  const [interimText, setInterimText] = useState('');
   const recognitionRef = useRef<any>(null);
+  const isBusyRef = useRef(false);
 
-  // Clean up on unmount to ensure no background listening
   useEffect(() => {
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.abort(); // Forcefully stop system mic
+        recognitionRef.current.abort();
         recognitionRef.current = null;
       }
     };
   }, []);
 
-  const toggleListening = () => {
+  const startListening = () => {
+    if (isBusyRef.current) return;
+    
+    // Check support
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      alert("Browser non supportato per dettatura.");
+      return;
+    }
+
+    isBusyRef.current = true;
+    if (navigator.vibrate) navigator.vibrate(30);
+
+    try {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      
+      recognition.lang = 'it-IT';
+      recognition.continuous = false; // Auto-stop on silence
+      recognition.interimResults = true; // Enable real-time preview
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        setInterimText('');
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        setInterimText('');
+        recognitionRef.current = null;
+        isBusyRef.current = false;
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn("Speech error", event.error);
+        // Silent fail or toast could go here, but prevent crash
+        setIsListening(false);
+        setInterimText('');
+        recognitionRef.current = null;
+        isBusyRef.current = false;
+        if (event.error === 'not-allowed') {
+          alert("Permesso microfono negato.");
+        }
+      };
+
+      recognition.onresult = (event: any) => {
+        let finalTranscript = '';
+        let interimTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+
+        if (finalTranscript) {
+          onResult(finalTranscript);
+          if (navigator.vibrate) navigator.vibrate([20, 20]);
+        }
+        
+        setInterimText(interimTranscript);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (e) {
+      console.error(e);
+      setIsListening(false);
+      isBusyRef.current = false;
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop(); // Try to stop gracefully to get result
+      if (navigator.vibrate) navigator.vibrate(30);
+    }
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent form submission
+    e.stopPropagation();
     if (isListening) {
       stopListening();
     } else {
@@ -250,79 +333,28 @@ const MicButton: React.FC<MicButtonProps> = ({ onResult, className = "" }) => {
     }
   };
 
-  const startListening = () => {
-    // Check support
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert("Il tuo browser non supporta la dettatura vocale. Prova con Chrome o Safari.");
-      return;
-    }
-
-    if (navigator.vibrate) navigator.vibrate(50); // Haptic feedback on start
-
-    try {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-      
-      recognition.lang = 'it-IT';
-      recognition.continuous = false; // Important: Stops automatically on silence
-      recognition.interimResults = false; // We only want final results
-
-      recognition.onstart = () => {
-        setIsListening(true);
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-        recognitionRef.current = null;
-      };
-
-      recognition.onerror = (event: any) => {
-        console.error("Speech error", event.error);
-        setIsListening(false);
-        recognitionRef.current = null;
-        if (event.error === 'not-allowed') {
-          alert("Accesso al microfono negato. Controlla le impostazioni del browser.");
-        }
-      };
-
-      recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        if (transcript) {
-          onResult(transcript);
-          if (navigator.vibrate) navigator.vibrate([30, 30]); // Double tap haptic on success
-        }
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
-    } catch (e) {
-      console.error(e);
-      alert("Errore nell'avvio del microfono.");
-      setIsListening(false);
-    }
-  };
-
-  const stopListening = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop(); 
-      if (navigator.vibrate) navigator.vibrate(50);
-      setIsListening(false);
-    }
-  };
-
   return (
-    <button
-      type="button"
-      onClick={toggleListening}
-      className={`p-2 rounded-full transition-all duration-200 z-20 ${
-        isListening 
-          ? 'bg-red-500 text-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]' 
-          : 'text-slate-400 hover:text-indigo-400 hover:bg-white/5'
-      } ${className}`}
-      title={isListening ? "Tocca per fermare" : "Tocca per parlare"}
-    >
-      <Mic size={20} className={isListening ? "animate-pulse" : ""} />
-    </button>
+    <div className={`relative inline-block ${className}`}>
+      {/* Real-time Preview Bubble */}
+      {isListening && interimText && (
+        <div className="absolute bottom-full mb-2 right-0 bg-indigo-600 text-white text-xs px-3 py-1 rounded-lg shadow-lg whitespace-nowrap animate-fade-in z-50 pointer-events-none">
+          {interimText}...
+        </div>
+      )}
+      
+      <button
+        type="button"
+        onClick={handleClick}
+        className={`p-2 rounded-full transition-all duration-200 relative z-20 ${
+          isListening 
+            ? 'bg-red-500 text-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]' 
+            : 'text-slate-400 hover:text-indigo-400 hover:bg-white/5'
+        }`}
+        title={isListening ? "Tocca per fermare" : "Dettatura vocale"}
+      >
+        <Mic size={20} className={isListening ? "animate-bounce" : ""} />
+      </button>
+    </div>
   );
 };
 
@@ -1035,7 +1067,7 @@ const AlertModal: React.FC<AlertModalProps> = ({ isOpen, onClose, onSave, initia
           <div className="relative">
             <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Titolo</label>
             <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Pagare bolletta" className="w-full text-xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 pr-12 bg-transparent" required />
-            <MicButton onResult={(text) => setTitle(prev => prev ? prev + ' ' + text : text)} className="absolute right-2 bottom-2" />
+            <MicButton onResult={(text) => setTitle(prev => prev ? prev + ' ' + text : text)} className="absolute right-2 bottom-2 z-20" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -1118,7 +1150,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, task }) 
               className="w-full text-xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 pr-12 bg-transparent" 
               required 
             />
-            <MicButton onResult={(res) => setText(prev => prev ? prev + ' ' + res : res)} className="absolute right-2 bottom-2" />
+            <MicButton onResult={(res) => setText(prev => prev ? prev + ' ' + res : res)} className="absolute right-2 bottom-2 z-20" />
           </div>
           <button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-500 transition-all flex justify-center gap-2">
             <Save size={20} /> Aggiorna
@@ -1806,22 +1838,24 @@ function App() {
                     <button onClick={() => handleShare('todo')} className="p-2 bg-slate-900 rounded-full text-slate-400 hover:text-white border border-slate-800"><Share2 size={16} /></button>
                 </div>
              </div>
-             <form onSubmit={handleAddTask} className="relative group">
-               <input 
-                 type="text" 
-                 value={newTaskText} 
-                 onChange={(e) => setNewTaskText(e.target.value)} 
-                 placeholder="Aggiungi una nuova attività..." 
-                 className="w-full bg-slate-900 border border-slate-800 text-slate-200 pl-4 pr-28 py-4 rounded-2xl outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all placeholder-slate-600" 
-               />
-               <div className="absolute right-2 top-2 bottom-2 flex items-center gap-1">
+             <form onSubmit={handleAddTask} className="relative group flex items-center gap-2">
+               <div className="relative flex-1">
+                 <input 
+                   type="text" 
+                   value={newTaskText} 
+                   onChange={(e) => setNewTaskText(e.target.value)} 
+                   placeholder="Aggiungi una nuova attività..." 
+                   className="w-full bg-slate-900 border border-slate-800 text-slate-200 pl-4 pr-12 py-4 rounded-2xl outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all placeholder-slate-600" 
+                 />
+               </div>
+               <div className="flex items-center gap-2">
                  <MicButton onResult={(res) => setNewTaskText(prev => prev ? prev + ' ' + res : res)} className="" />
                  <button 
                    type="submit" 
                    disabled={!newTaskText.trim()} 
-                   className="aspect-square bg-indigo-600 text-white rounded-xl flex items-center justify-center disabled:opacity-50 disabled:bg-slate-800 transition-all h-full"
+                   className="w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center disabled:opacity-50 disabled:bg-slate-800 transition-all shadow-lg shadow-indigo-900/20"
                  >
-                   <Plus size={20} />
+                   <Plus size={24} />
                  </button>
                </div>
              </form>
@@ -1841,7 +1875,7 @@ function App() {
                     <button onClick={() => handleShare('shopping')} className="p-2 bg-slate-900 rounded-full text-slate-400 hover:text-white border border-slate-800"><Share2 size={16} /></button>
                   </div>
               </div>
-               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 -mx-4 px-4 sm:mx-0 sm:px-0"><div className="flex items-center justify-center min-w-[32px] h-8 rounded-full bg-slate-900 border border-slate-800 text-slate-500"><Filter size={14} /></div>{allShoppingCategories.map((cat) => ( <button key={cat} onClick={() => setSelectedShoppingCategory(cat)} className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${selectedShoppingCategory === cat ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/30' : 'bg-slate-900 text-slate-400 border border-slate-800 hover:border-slate-600'}`}>{cat}</button> ))}</div>
+               <div className="sticky top-[135px] z-20 bg-[#0E1629]/95 backdrop-blur py-2 flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 -mx-4 px-4 sm:mx-0 sm:px-0"><div className="flex items-center justify-center min-w-[32px] h-8 rounded-full bg-slate-900 border border-slate-800 text-slate-500"><Filter size={14} /></div>{allShoppingCategories.map((cat) => ( <button key={cat} onClick={() => setSelectedShoppingCategory(cat)} className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${selectedShoppingCategory === cat ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/30' : 'bg-slate-900 text-slate-400 border border-slate-800 hover:border-slate-600'}`}>{cat}</button> ))}</div>
               <div className="space-y-0">{shoppingItems.length > 0 ? ( <> <div className="flex items-center gap-2 mb-2 px-2"><Info size={12} className="text-slate-600" /><span className="text-[10px] text-slate-600 uppercase tracking-wider">Tocca per spuntare • Scorri: SX Elimina / DX Modifica</span></div> {displayedShoppingItems.map(item => ( <ShoppingListItem key={item.id} item={item} onToggle={handleToggleShoppingItem} onDelete={handleDeleteShoppingItem} onEdit={handleEditShoppingItem} hapticEnabled={userSettings.hapticEnabled} /> ))} </> ) : ( <div className="text-center py-20 opacity-50 flex flex-col items-center"><div className="bg-slate-900 border border-slate-800 w-20 h-20 rounded-full flex items-center justify-center mb-4"><ShoppingCart size={32} className="text-slate-600" /></div><p className="text-slate-400">Lista della spesa vuota.</p></div> )}</div>
            </div>
         )}
