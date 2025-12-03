@@ -2,11 +2,12 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { 
   Plus, Home, ShoppingCart, ListTodo, Bell, BarChart3, 
-  Wallet, PieChart, ArrowRight, Sparkles, CheckCircle2, Circle, Trash2, AlertTriangle, Info,
+  Wallet, PieChart as PieChartIcon, ArrowRight, Sparkles, CheckCircle2, Circle, Trash2, AlertTriangle, Info,
   ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut, Calendar, Clock, User, Key, Lock, ExternalLink, ChevronDown, ChevronUp, Mail,
   Sun, Cloud, CloudRain, CloudSnow, CloudLightning, MapPin, Droplets, ThermometerSun, Smartphone, Layout, Volume2
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 // --- TYPES ---
 export type TransactionType = 'expense' | 'income';
@@ -59,6 +60,9 @@ export interface WeatherData {
     temperature_2m_min: number[];
   };
 }
+
+// Constants
+const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
 
 // --- SERVICES ---
 // Gestione API Key dinamica
@@ -715,9 +719,32 @@ const App = () => {
   const monthlyStats = useMemo(() => {
     const now = new Date();
     const current = transactions.filter(t => new Date(t.date).getMonth() === now.getMonth() && new Date(t.date).getFullYear() === now.getFullYear());
-    const inc = current.filter(t => t.type === 'income').reduce((acc, t) => acc + (Number(t.amount)||0), 0);
-    const exp = current.filter(t => t.type === 'expense').reduce((acc, t) => acc + (Number(t.amount)||0), 0);
+    const inc = current.filter(t => t.type === 'income').reduce((acc: number, t) => acc + (Number(t.amount)||0), 0);
+    const exp = current.filter(t => t.type === 'expense').reduce((acc: number, t) => acc + (Number(t.amount)||0), 0);
     return { totalIncome: inc, totalExpense: exp, balance: inc - exp };
+  }, [transactions]);
+
+  // Chart Data
+  const expenseChartData = useMemo(() => {
+    const now = new Date();
+    const currentExpenses = transactions.filter(t => 
+      t.type === 'expense' &&
+      new Date(t.date).getMonth() === now.getMonth() &&
+      new Date(t.date).getFullYear() === now.getFullYear()
+    );
+
+    const grouped = currentExpenses.reduce((acc, t) => {
+      acc[t.category] = (acc[t.category] || 0) + t.amount;
+      return acc;
+    }, {} as Record<string, number>);
+
+    return Object.entries(grouped)
+      .map(([name, value], index) => ({
+        name,
+        value,
+        color: CHART_COLORS[index % CHART_COLORS.length]
+      }))
+      .sort((a, b) => b.value - a.value); // Biggest first
   }, [transactions]);
 
   // Handlers
@@ -1006,13 +1033,55 @@ const App = () => {
         </div>
       );
       case 'reports': return (
-        <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-          <h3 className="font-bold text-white mb-4">Report Mensile</h3>
-          <div className="space-y-3">
-             <div className="flex justify-between"><span className="text-slate-400">Entrate</span><span className="text-emerald-400 font-bold">€{monthlyStats.totalIncome.toLocaleString()}</span></div>
-             <div className="flex justify-between"><span className="text-slate-400">Uscite</span><span className="text-red-400 font-bold">€{monthlyStats.totalExpense.toLocaleString()}</span></div>
-             <div className="h-px bg-slate-800"></div>
-             <div className="flex justify-between"><span className="text-white">Saldo</span><span className={monthlyStats.balance >= 0 ? "text-indigo-400 font-bold" : "text-red-400 font-bold"}>€{monthlyStats.balance.toLocaleString()}</span></div>
+        <div className="space-y-6">
+          <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
+            <h3 className="font-bold text-white mb-4">Report Mensile</h3>
+            <div className="space-y-3">
+               <div className="flex justify-between"><span className="text-slate-400">Entrate</span><span className="text-emerald-400 font-bold">€{monthlyStats.totalIncome.toLocaleString()}</span></div>
+               <div className="flex justify-between"><span className="text-slate-400">Uscite</span><span className="text-red-400 font-bold">€{monthlyStats.totalExpense.toLocaleString()}</span></div>
+               <div className="h-px bg-slate-800"></div>
+               <div className="flex justify-between"><span className="text-white">Saldo</span><span className={monthlyStats.balance >= 0 ? "text-indigo-400 font-bold" : "text-red-400 font-bold"}>€{monthlyStats.balance.toLocaleString()}</span></div>
+            </div>
+          </div>
+
+          <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
+             <h3 className="font-bold text-white mb-4 flex items-center gap-2"><PieChartIcon size={20} className="text-indigo-400"/> Spese per Categoria</h3>
+             {expenseChartData.length > 0 ? (
+                <div className="h-[300px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={expenseChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {expenseChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} stroke="#0f172a" strokeWidth={2}/>
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px', fontSize: '12px' }}
+                        itemStyle={{ color: '#e2e8f0' }}
+                        formatter={(value: number) => [`€${value.toFixed(2)}`, '']}
+                      />
+                      <Legend 
+                         layout="vertical" 
+                         verticalAlign="middle" 
+                         align="right"
+                         iconType="circle"
+                         iconSize={8}
+                         formatter={(value) => <span className="text-xs text-slate-300 ml-1">{value}</span>}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+             ) : (
+                <p className="text-center text-slate-500 text-xs py-10">Nessuna spesa registrata questo mese.</p>
+             )}
           </div>
         </div>
       );
@@ -1048,7 +1117,7 @@ const App = () => {
           <div className="flex justify-around items-center h-16">
               {[
                 {id:'home', icon:Wallet, l:'Wallet'}, {id:'shopping', icon:ShoppingCart, l:'Spesa'}, 
-                {id:'doit', icon:ListTodo, l:'Do It'}, {id:'alerts', icon:Bell, l:'Avvisi'}, {id:'reports', icon:PieChart, l:'Grafico'}
+                {id:'doit', icon:ListTodo, l:'Do It'}, {id:'alerts', icon:Bell, l:'Avvisi'}, {id:'reports', icon:PieChartIcon, l:'Grafico'}
               ].map(i => (
                 <button key={i.id} onClick={() => setActiveTab(i.id as any)} className={`flex flex-col items-center justify-center w-14 ${activeTab === i.id ? 'text-indigo-400' : 'text-slate-500'}`}>
                   <i.icon size={22} className={activeTab === i.id ? 'fill-indigo-400/20' : ''}/><span className="text-[9px] font-bold mt-1">{i.l}</span>
