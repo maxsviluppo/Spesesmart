@@ -3,7 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { 
   Plus, Home, ShoppingCart, ListTodo, Bell, BarChart3, 
   Wallet, PieChart, ArrowRight, Sparkles, CheckCircle2, Circle, Trash2, AlertTriangle, Info,
-  ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut, Calendar, Clock, User, Key, Lock, ExternalLink, ChevronDown, ChevronUp, Mail
+  ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut, Calendar, Clock, User, Key, Lock, ExternalLink, ChevronDown, ChevronUp, Mail,
+  Sun, Cloud, CloudRain, CloudSnow, CloudLightning, MapPin, Droplets, ThermometerSun
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
@@ -44,6 +45,18 @@ export interface ManualAlert {
   message: string;
   date: string; // ISO Date only
   time: string; // HH:mm
+}
+
+export interface WeatherData {
+  current: {
+    temperature_2m: number;
+    weather_code: number;
+    relative_humidity_2m: number;
+  };
+  daily: {
+    temperature_2m_max: number[];
+    temperature_2m_min: number[];
+  };
 }
 
 // --- SERVICES ---
@@ -93,6 +106,94 @@ const getFinancialAdvice = async (transactions: Transaction[], month: string, us
 };
 
 // --- COMPONENTS ---
+
+// Weather Widget Component
+const WeatherWidget = () => {
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setError('GPS non supportato');
+      setLoading(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          // Open-Meteo API (Free, no key required)
+          const response = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,relative_humidity_2m&daily=temperature_2m_max,temperature_2m_min&timezone=auto`
+          );
+          if (!response.ok) throw new Error('Errore rete');
+          const data = await response.json();
+          setWeather(data);
+        } catch (err) {
+          console.error(err);
+          setError('Meteo non disponibile');
+        } finally {
+          setLoading(false);
+        }
+      }, 
+      (err) => {
+        console.error(err);
+        setError('Posizione negata');
+        setLoading(false);
+      }
+    );
+  }, []);
+
+  // Helper per icona meteo e descrizione
+  const getWeatherIcon = (code: number) => {
+    // WMO Weather interpretation codes
+    if (code === 0) return { icon: <Sun className="text-yellow-400" size={32} />, label: 'Sereno' };
+    if (code >= 1 && code <= 3) return { icon: <Cloud className="text-slate-400" size={32} />, label: 'Nuvoloso' };
+    if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return { icon: <CloudRain className="text-blue-400" size={32} />, label: 'Pioggia' };
+    if (code >= 71 && code <= 77) return { icon: <CloudSnow className="text-white" size={32} />, label: 'Neve' };
+    if (code >= 95) return { icon: <CloudLightning className="text-purple-400" size={32} />, label: 'Temporale' };
+    return { icon: <Cloud className="text-slate-400" size={32} />, label: 'Variabile' };
+  };
+
+  if (loading) return <div className="animate-pulse bg-slate-900/50 h-24 rounded-xl border border-slate-800 mb-6 flex items-center justify-center text-xs text-slate-500">Caricamento meteo...</div>;
+  if (error) return null; // Nascondi silenziosamente se errore o permesso negato per non rovinare UI
+  if (!weather) return null;
+
+  const current = weather.current;
+  const todayMax = weather.daily.temperature_2m_max[0];
+  const todayMin = weather.daily.temperature_2m_min[0];
+  const { icon, label } = getWeatherIcon(current.weather_code);
+
+  return (
+    <div className="bg-gradient-to-br from-slate-900 to-slate-950 p-4 rounded-xl border border-slate-800 mb-6 flex items-center justify-between relative overflow-hidden">
+        {/* Background Accent */}
+        <div className="absolute -right-6 -top-6 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl"></div>
+
+        <div className="flex items-center gap-4 z-10">
+            <div className="flex flex-col items-center">
+                {icon}
+                <span className="text-[10px] text-slate-400 font-medium mt-1">{label}</span>
+            </div>
+            <div>
+                <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-bold text-white">{Math.round(current.temperature_2m)}°</span>
+                    <span className="text-xs text-slate-400">Posizione attuale</span>
+                </div>
+                <div className="flex gap-3 mt-1 text-xs text-slate-400">
+                    <span className="flex items-center gap-1"><ArrowUpCircle size={12} className="text-red-400"/> {Math.round(todayMax)}°</span>
+                    <span className="flex items-center gap-1"><ArrowDownCircle size={12} className="text-emerald-400"/> {Math.round(todayMin)}°</span>
+                    <span className="flex items-center gap-1"><Droplets size={12} className="text-blue-400"/> {current.relative_humidity_2m}%</span>
+                </div>
+            </div>
+        </div>
+        <div className="z-10 bg-slate-800/50 p-2 rounded-lg border border-slate-700/50 backdrop-blur-sm">
+             <MapPin size={20} className="text-indigo-400"/>
+        </div>
+    </div>
+  );
+};
 
 // Voice Input Component
 const VoiceInput = ({ onResult }: { onResult: (text: string) => void }) => {
@@ -567,6 +668,7 @@ const App = () => {
     switch (activeTab) {
       case 'home': return (
         <>
+          <WeatherWidget />
           <section className="bg-indigo-950/30 p-4 rounded-xl border border-indigo-500/20 relative mb-6">
              <div className="flex justify-between items-center mb-2">
                <div className="flex items-center gap-2 text-indigo-200 font-bold"><Sparkles size={16}/><span>AI Advisor</span></div>
