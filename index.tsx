@@ -24,7 +24,8 @@ import {
   Square,
   FileText,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Mail
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -1219,6 +1220,37 @@ function App() {
             </div>
           </div>
         )}
+
+        {/* --- FOOTER SEPARATO CON LINEA LUMINOSA --- */}
+        <div className="pt-10 pb-4">
+            <div className="relative py-6">
+                {/* Linea luminosa */}
+                <div className="absolute top-0 left-10 right-10 h-px bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50 shadow-[0_0_8px_rgba(99,102,241,1)]"></div>
+                
+                <div className="text-center space-y-3">
+                    <div>
+                        <h3 className="text-xs font-black text-slate-300 tracking-[0.2em] uppercase">DevTools</h3>
+                        <p className="text-[10px] font-medium text-indigo-400 tracking-widest uppercase mt-0.5">By Castro Massimo</p>
+                    </div>
+
+                    <p className="text-[10px] text-slate-500 leading-relaxed px-4 max-w-xs mx-auto">
+                      Questa App è realizzata da DevTools by Castro Massimo.<br/>
+                      Se hai bisogno di supporto, segnalazioni o di WebApp personalizzate contattaci.
+                    </p>
+
+                    <a 
+                      href="mailto:castromassimo@gmail.com"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900 border border-slate-800 text-slate-400 text-xs hover:text-white hover:border-indigo-500 hover:shadow-[0_0_15px_-3px_rgba(99,102,241,0.3)] transition-all duration-300 group"
+                    >
+                      <div className="p-1 bg-slate-800 rounded-full group-hover:bg-indigo-600 transition-colors">
+                          <Mail size={12} className="text-slate-300 group-hover:text-white" />
+                      </div>
+                      <span>castromassimo@gmail.com</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
       </main>
 
       {/* Floating Action Button for Desktop/Mobile hybrid feeling */}
