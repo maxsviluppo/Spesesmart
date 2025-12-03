@@ -321,7 +321,7 @@ const MicButton: React.FC<MicButtonProps> = ({ onResult, className = "" }) => {
       } ${className}`}
       title={isListening ? "Tocca per fermare" : "Tocca per parlare"}
     >
-      <Mic size={18} className={isListening ? "animate-pulse" : ""} />
+      <Mic size={20} className={isListening ? "animate-pulse" : ""} />
     </button>
   );
 };
@@ -1035,7 +1035,7 @@ const AlertModal: React.FC<AlertModalProps> = ({ isOpen, onClose, onSave, initia
           <div className="relative">
             <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Titolo</label>
             <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Pagare bolletta" className="w-full text-xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 pr-10 bg-transparent" required />
-            <MicButton onResult={(text) => setTitle(text)} className="absolute right-0 top-6" />
+            <MicButton onResult={(text) => setTitle(prev => prev ? prev + ' ' + text : text)} className="absolute right-0 bottom-2" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -1118,7 +1118,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, task }) 
               className="w-full text-xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 pr-10 bg-transparent" 
               required 
             />
-            <MicButton onResult={(res) => setText(res)} className="absolute right-0 top-6" />
+            <MicButton onResult={(res) => setText(prev => prev ? prev + ' ' + res : res)} className="absolute right-0 bottom-2" />
           </div>
           <button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-500 transition-all flex justify-center gap-2">
             <Save size={20} /> Aggiorna
@@ -1699,7 +1699,7 @@ function App() {
              </div>
              <form onSubmit={handleAddTask} className="relative group">
                <input type="text" value={newTaskText} onChange={(e) => setNewTaskText(e.target.value)} placeholder="Aggiungi una nuova attività..." className="w-full bg-slate-900 border border-slate-800 text-slate-200 pl-4 pr-12 py-4 rounded-2xl outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all placeholder-slate-600" />
-               <MicButton onResult={(res) => setNewTaskText(res)} className="absolute right-12 top-2 bottom-2" />
+               <MicButton onResult={(res) => setNewTaskText(prev => prev ? prev + ' ' + res : res)} className="absolute right-12 top-2 bottom-2" />
                <button type="submit" disabled={!newTaskText.trim()} className="absolute right-2 top-2 bottom-2 aspect-square bg-indigo-600 text-white rounded-xl flex items-center justify-center disabled:opacity-50 disabled:bg-slate-800 transition-all"><Plus size={20} /></button>
              </form>
              <div className="space-y-3">
