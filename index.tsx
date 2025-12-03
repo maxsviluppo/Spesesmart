@@ -41,7 +41,9 @@ import {
   VibrateOff,
   User,
   LogOut,
-  AlertTriangle
+  AlertTriangle,
+  Cloud,
+  LogIn
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -576,6 +578,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
         </div>
         <div className="p-6 space-y-8">
           
+          {/* Account Section - Coming Soon */}
+          <div className="space-y-3 pb-4 border-b border-slate-800">
+             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+               <div className="flex items-center gap-2"><Cloud size={14} /> Account & Cloud</div>
+               <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-bold">In arrivo</span>
+             </label>
+             <div className="bg-slate-950/50 p-4 rounded-xl border border-dashed border-slate-800 flex flex-col items-center justify-center text-center gap-2 opacity-75">
+               <p className="text-sm text-slate-400">Salva i tuoi dati online e accedi da più dispositivi.</p>
+               <button disabled className="mt-2 px-6 py-2 bg-slate-800 text-slate-500 rounded-lg font-bold text-sm cursor-not-allowed flex items-center gap-2 transition-all">
+                 <LogIn size={16} /> Accedi / Registrati
+               </button>
+             </div>
+          </div>
+
           {/* Profile Section */}
           <div className="space-y-3">
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
@@ -991,11 +1007,13 @@ function App() {
     const newDate = new Date(currentDate); newDate.setMonth(newDate.getMonth() + delta);
     setCurrentDate(newDate); setAiAdvice(null); setSelectedCategory('Tutte');
   };
+  // Fix: Removed reference to undefined 'newDate' and correctly set date from input
   const handleDateSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.value) {
       const [year, month] = e.target.value.split('-');
+      setAiAdvice(null); 
+      setSelectedCategory('Tutte');
       setCurrentDate(new Date(parseInt(year), parseInt(month) - 1, 1));
-      setAiAdvice(null); setSelectedCategory('Tutte');
     }
   };
   const handleAiAnalysis = async () => {
@@ -1030,7 +1048,7 @@ function App() {
       <g>
         <text x={cx} y={cy - 12} dy={8} textAnchor="middle" fill="#94a3b8" className="text-[10px] uppercase font-bold tracking-widest animate-fade-in">{payload.name.length > 12 ? payload.name.substring(0, 10) + '..' : payload.name}</text>
         <text x={cx} y={cy + 12} dy={8} textAnchor="middle" fill="#f8fafc" className="text-xl font-black animate-fade-in">€{value.toLocaleString()}</text>
-        <Sector cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius + 12} startAngle={startAngle} endAngle={endAngle} fill={fill} stroke="#020617" strokeWidth={4} cornerRadius={6} className="transition-all duration-300 ease-out" style={{ filter: `drop-shadow(0px 0px 6px ${fill}80)` }} />
+        <Sector cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius + 12} startAngle={startAngle} endAngle={endAngle} fill={fill} stroke="#0E1629" strokeWidth={4} cornerRadius={6} className="transition-all duration-300 ease-out" style={{ filter: `drop-shadow(0px 0px 6px ${fill}80)` }} />
         <Sector cx={cx} cy={cy} startAngle={startAngle} endAngle={endAngle} innerRadius={outerRadius + 18} outerRadius={outerRadius + 20} fill={fill} cornerRadius={10} opacity={0.4} />
       </g>
     );
@@ -1038,8 +1056,8 @@ function App() {
   const COLORS = ['#818cf8', '#f472b6', '#34d399', '#fbbf24', '#a78bfa', '#22d3ee', '#fb7185', '#e879f9'];
 
   return (
-    <div className="min-h-screen pb-24 max-w-lg mx-auto bg-slate-950 border-x border-slate-800 shadow-2xl overflow-hidden relative text-slate-200">
-      <header className="bg-slate-950/90 backdrop-blur-xl px-6 py-5 sticky top-0 z-30 border-b border-white/5 flex items-center justify-between">
+    <div className="min-h-screen pb-24 max-w-lg mx-auto bg-[#0E1629] border-x border-slate-800 shadow-2xl overflow-hidden relative text-slate-200">
+      <header className="bg-[#0E1629]/90 backdrop-blur-xl px-6 py-5 sticky top-0 z-30 border-b border-white/5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-tr from-indigo-600 to-violet-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 ring-1 ring-white/10"><Wallet size={20} strokeWidth={2.5} /></div>
           <div className="flex flex-col">
@@ -1066,7 +1084,7 @@ function App() {
             <div className="w-full"><div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-sm flex justify-between items-center"><div><p className="text-xs text-slate-500 uppercase font-bold tracking-wide">Saldo Attuale</p><p className={`text-3xl font-extrabold mt-1 ${stats.balance >= 0 ? 'text-indigo-400' : 'text-red-400'}`}>{stats.balance.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</p></div><div className="h-10 w-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-500"><TrendingUp size={20} /></div></div></div>
             <div className="space-y-4">
              <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-slate-100">Transazioni</h2><span className="text-xs text-slate-500 bg-slate-900 border border-slate-800 px-2 py-1 rounded-full">{displayedTransactions.length} mov.</span></div>
-             <div className="sticky top-[80px] z-20 bg-slate-950/95 backdrop-blur py-2 flex items-center gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+             <div className="sticky top-[80px] z-20 bg-[#0E1629]/95 backdrop-blur py-2 flex items-center gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
                 <div className="flex items-center justify-center min-w-[32px] h-8 rounded-full bg-slate-900 border border-slate-800 text-slate-500"><Filter size={14} /></div>
                 {allCategories.map((cat) => ( <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${selectedCategory === cat ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/30' : 'bg-slate-900 text-slate-400 border border-slate-800 hover:border-slate-600'}`}>{cat}</button> ))}
              </div>
@@ -1272,7 +1290,7 @@ function App() {
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={userSettings} onUpdateSettings={setUserSettings} onReset={handleResetData} />
 
       {/* Nav */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 pb-safe pt-2 px-4 h-20 sm:max-w-lg sm:mx-auto z-20">
+      <nav className="fixed bottom-0 left-0 right-0 bg-[#0E1629] border-t border-slate-800 pb-safe pt-2 px-4 h-20 sm:max-w-lg sm:mx-auto z-20">
         <div className="flex justify-between items-center h-full pb-2">
           <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center gap-1 transition-colors w-12 ${activeTab === 'home' ? 'text-indigo-400' : 'text-slate-600'}`}><Wallet size={20} /><span className="text-[9px] font-medium">Home</span></button>
           <button onClick={() => setActiveTab('shopping')} className={`flex flex-col items-center gap-1 transition-colors w-12 ${activeTab === 'shopping' ? 'text-indigo-400' : 'text-slate-600'}`}><ShoppingCart size={20} /><span className="text-[9px] font-medium">Spesa</span></button>
