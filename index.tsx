@@ -18,7 +18,10 @@ import {
   Edit2,
   X, 
   Check, 
-  Save 
+  Save,
+  ListTodo,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -39,6 +42,13 @@ export interface Transaction {
   category: string;
   date: string; // ISO string
   type: TransactionType;
+}
+
+export interface Task {
+  id: string;
+  text: string;
+  completed: boolean;
+  createdAt: number;
 }
 
 export const DEFAULT_EXPENSE_CATEGORIES = [
@@ -574,6 +584,13 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  // State Tasks (Do It)
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    const saved = localStorage.getItem('spesesmart_tasks');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [newTaskText, setNewTaskText] = useState('');
+
   // State Categories
   const [expenseCategories, setExpenseCategories] = useState<string[]>(() => {
     const saved = localStorage.getItem('spesesmart_expense_categories');
@@ -587,7 +604,7 @@ function App() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'reports'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'reports' | 'doit'>('home');
   const [currentDate, setCurrentDate] = useState(new Date());
   
   // Filter State
@@ -604,6 +621,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('spesesmart_transactions', JSON.stringify(transactions));
   }, [transactions]);
+
+  useEffect(() => {
+    localStorage.setItem('spesesmart_tasks', JSON.stringify(tasks));
+  }, [tasks]);
 
   useEffect(() => {
     localStorage.setItem('spesesmart_expense_categories', JSON.stringify(expenseCategories));
@@ -742,6 +763,31 @@ function App() {
     setActiveIndex(index);
   };
 
+  // --- Task Handlers ---
+  const handleAddTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskText.trim()) return;
+    const newTask: Task = {
+      id: crypto.randomUUID(),
+      text: newTaskText.trim(),
+      completed: false,
+      createdAt: Date.now()
+    };
+    setTasks(prev => [newTask, ...prev]);
+    setNewTaskText('');
+  };
+
+  const handleToggleTask = (id: string) => {
+    setTasks(prev => prev.map(t => 
+      t.id === id ? { ...t, completed: !t.completed } : t
+    ));
+  };
+
+  const handleDeleteTask = (id: string) => {
+    setTasks(prev => prev.filter(t => t.id !== id));
+  };
+
+
   // Custom Active Shape for Pie Chart
   const renderActiveShape = (props: any) => {
     const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload, value } = props;
@@ -831,27 +877,31 @@ function App() {
 
       <main className="p-4 sm:p-6 space-y-6">
         
-        {/* Stats Row */}
-        <div className="flex gap-3">
-          <StatsCard label="Entrate" amount={stats.totalIncome} type="income" />
-          <StatsCard label="Uscite" amount={stats.totalExpense} type="expense" />
-        </div>
-        <div className="w-full">
-           <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-sm flex justify-between items-center">
-             <div>
-               <p className="text-xs text-slate-500 uppercase font-bold tracking-wide">Saldo Attuale</p>
-               <p className={`text-3xl font-extrabold mt-1 ${stats.balance >= 0 ? 'text-indigo-400' : 'text-red-400'}`}>
-                 {stats.balance.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
-               </p>
-             </div>
-             <div className="h-10 w-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-500">
-               <TrendingUp size={20} />
-             </div>
-           </div>
-        </div>
+        {activeTab !== 'doit' && (
+          <>
+            {/* Stats Row */}
+            <div className="flex gap-3">
+              <StatsCard label="Entrate" amount={stats.totalIncome} type="income" />
+              <StatsCard label="Uscite" amount={stats.totalExpense} type="expense" />
+            </div>
+            <div className="w-full">
+              <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-sm flex justify-between items-center">
+                <div>
+                  <p className="text-xs text-slate-500 uppercase font-bold tracking-wide">Saldo Attuale</p>
+                  <p className={`text-3xl font-extrabold mt-1 ${stats.balance >= 0 ? 'text-indigo-400' : 'text-red-400'}`}>
+                    {stats.balance.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                  </p>
+                </div>
+                <div className="h-10 w-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-500">
+                  <TrendingUp size={20} />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Content based on Tab */}
-        {activeTab === 'home' ? (
+        {activeTab === 'home' && (
           <div className="space-y-4">
              <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-100">Transazioni</h2>
@@ -917,7 +967,76 @@ function App() {
                </div>
              )}
           </div>
-        ) : (
+        )}
+
+        {activeTab === 'doit' && (
+          <div className="space-y-6 animate-fade-in">
+             <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-slate-100">Do It</h2>
+              <span className="text-xs text-indigo-400 font-bold bg-indigo-950/30 border border-indigo-900/50 px-3 py-1 rounded-full">
+                {tasks.filter(t => t.completed).length}/{tasks.length} Completati
+              </span>
+             </div>
+
+             {/* Add Task Input */}
+             <form onSubmit={handleAddTask} className="relative group">
+                <input 
+                  type="text" 
+                  value={newTaskText}
+                  onChange={(e) => setNewTaskText(e.target.value)}
+                  placeholder="Aggiungi una nuova attività..."
+                  className="w-full bg-slate-900 border border-slate-800 text-slate-200 pl-4 pr-12 py-4 rounded-2xl outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all placeholder-slate-600"
+                />
+                <button 
+                  type="submit"
+                  disabled={!newTaskText.trim()}
+                  className="absolute right-2 top-2 bottom-2 aspect-square bg-indigo-600 text-white rounded-xl flex items-center justify-center disabled:opacity-50 disabled:bg-slate-800 transition-all"
+                >
+                  <Plus size={20} />
+                </button>
+             </form>
+
+             {/* Task List */}
+             <div className="space-y-3">
+               {tasks.length > 0 ? (
+                 tasks.sort((a,b) => (a.completed === b.completed ? 0 : a.completed ? 1 : -1)).map(task => (
+                   <div 
+                    key={task.id} 
+                    className={`flex items-center gap-4 p-4 rounded-xl border transition-all duration-300 ${task.completed ? 'bg-slate-950/50 border-slate-900 opacity-60' : 'bg-slate-900 border-slate-800'}`}
+                   >
+                     <button 
+                      onClick={() => handleToggleTask(task.id)}
+                      className={`min-w-[24px] h-6 rounded-md border flex items-center justify-center transition-all ${task.completed ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-600 hover:border-indigo-500'}`}
+                     >
+                       {task.completed && <Check size={16} strokeWidth={3} />}
+                     </button>
+                     
+                     <span className={`flex-1 font-medium transition-all ${task.completed ? 'text-slate-600 line-through' : 'text-slate-200'}`}>
+                       {task.text}
+                     </span>
+
+                     <button 
+                      onClick={() => handleDeleteTask(task.id)}
+                      className="text-slate-600 hover:text-red-400 transition-colors p-2"
+                     >
+                       <Trash2 size={18} />
+                     </button>
+                   </div>
+                 ))
+               ) : (
+                 <div className="text-center py-20 opacity-50 flex flex-col items-center">
+                    <div className="bg-slate-900 border border-slate-800 w-20 h-20 rounded-full flex items-center justify-center mb-4">
+                      <ListTodo size={32} className="text-slate-600" />
+                    </div>
+                    <p className="text-slate-400">Nessuna attività in lista.</p>
+                    <p className="text-xs text-slate-600 mt-2">Pianifica le tue spese o obiettivi qui.</p>
+                 </div>
+               )}
+             </div>
+          </div>
+        )}
+
+        {activeTab === 'reports' && (
           <div className="space-y-6 animate-fade-in">
             {/* Charts Section */}
             <div className="bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-800">
@@ -1014,13 +1133,16 @@ function App() {
       </main>
 
       {/* Floating Action Button for Desktop/Mobile hybrid feeling */}
-      <button
-        onClick={handleOpenAddModal}
-        className="fixed bottom-24 right-4 sm:right-[calc(50%-240px+1rem)] bg-indigo-600 text-white p-4 rounded-full shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 active:scale-90 transition-all z-20"
-        aria-label="Aggiungi Transazione"
-      >
-        <Plus size={28} />
-      </button>
+      {/* Hide on 'doit' tab because tasks are added inline */}
+      {activeTab !== 'doit' && (
+        <button
+          onClick={handleOpenAddModal}
+          className="fixed bottom-24 right-4 sm:right-[calc(50%-240px+1rem)] bg-indigo-600 text-white p-4 rounded-full shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 active:scale-90 transition-all z-20"
+          aria-label="Aggiungi Transazione"
+        >
+          <Plus size={28} />
+        </button>
+      )}
 
       {/* Add Modal */}
       <AddModal 
@@ -1035,21 +1157,26 @@ function App() {
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 pb-safe pt-2 px-6 h-20 sm:max-w-lg sm:mx-auto z-20">
-        <div className="flex justify-around items-center h-full pb-2">
+        <div className="flex justify-between items-center h-full pb-2 px-4">
           <button 
             onClick={() => setActiveTab('home')}
-            className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'home' ? 'text-indigo-400' : 'text-slate-600 hover:text-slate-400'}`}
+            className={`flex flex-col items-center gap-1 transition-colors w-16 ${activeTab === 'home' ? 'text-indigo-400' : 'text-slate-600 hover:text-slate-400'}`}
           >
             <Wallet size={24} />
             <span className="text-[10px] font-medium">Home</span>
           </button>
           
-          {/* Spacer for FAB */}
-          <div className="w-12"></div>
+          <button 
+            onClick={() => setActiveTab('doit')}
+            className={`flex flex-col items-center gap-1 transition-colors w-16 ${activeTab === 'doit' ? 'text-indigo-400' : 'text-slate-600 hover:text-slate-400'}`}
+          >
+            <ListTodo size={24} />
+            <span className="text-[10px] font-medium">Do It</span>
+          </button>
 
           <button 
             onClick={() => setActiveTab('reports')}
-            className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'reports' ? 'text-indigo-400' : 'text-slate-600 hover:text-slate-400'}`}
+            className={`flex flex-col items-center gap-1 transition-colors w-16 ${activeTab === 'reports' ? 'text-indigo-400' : 'text-slate-600 hover:text-slate-400'}`}
           >
             <BarChart3 size={24} />
             <span className="text-[10px] font-medium">Report</span>
