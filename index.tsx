@@ -32,7 +32,16 @@ import {
   Bell,
   Clock,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Settings,
+  Share2,
+  Volume2,
+  VolumeX,
+  Vibrate,
+  VibrateOff,
+  User,
+  LogOut,
+  AlertTriangle
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -89,6 +98,12 @@ export interface Alert {
   completed: boolean; // New field for completion status
 }
 
+export interface UserSettings {
+  userName: string;
+  soundEnabled: boolean;
+  hapticEnabled: boolean;
+}
+
 export const DEFAULT_EXPENSE_CATEGORIES = [
   'Alimentari',
   'Trasporti',
@@ -124,7 +139,8 @@ export interface MonthlyStats {
 }
 
 // --- SOUND UTILS ---
-const playNotificationSound = () => {
+const playNotificationSound = (enabled: boolean = true) => {
+  if (!enabled) return;
   try {
     const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContext) return;
@@ -201,9 +217,10 @@ interface TransactionItemProps {
   onDelete: (id: string) => void;
   onEdit: (transaction: Transaction) => void;
   isFirst?: boolean;
+  hapticEnabled: boolean;
 }
 
-const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete, onEdit, isFirst = false }) => {
+const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete, onEdit, isFirst = false, hapticEnabled }) => {
   const isExpense = transaction.type === 'expense';
   const hasNote = !!transaction.note && transaction.note.trim().length > 0;
   
@@ -285,7 +302,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
   };
 
   const handleStartDeleteSequence = () => {
-      if (navigator.vibrate) navigator.vibrate(50);
+      if (hapticEnabled && navigator.vibrate) navigator.vibrate(50);
       setIsConfirmingDelete(true);
       setCurrentX(0);
       deleteTimerRef.current = setTimeout(() => performFinalDelete(), 3000);
@@ -421,9 +438,10 @@ interface AlertItemProps {
   onDelete: (id: string) => void;
   onEdit: (alert: Alert) => void;
   onToggle: (id: string) => void;
+  hapticEnabled: boolean;
 }
 
-const AlertItem: React.FC<AlertItemProps> = ({ alert, onDelete, onEdit, onToggle }) => {
+const AlertItem: React.FC<AlertItemProps> = ({ alert, onDelete, onEdit, onToggle, hapticEnabled }) => {
   const [startX, setStartX] = useState<number | null>(null);
   const [currentX, setCurrentX] = useState<number>(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -447,7 +465,7 @@ const AlertItem: React.FC<AlertItemProps> = ({ alert, onDelete, onEdit, onToggle
   const handleMouseUp = () => handleSwipeEnd();
   const handleMouseLeave = () => { if (isDragging) handleSwipeEnd(); };
   const handleSwipeEnd = () => { setIsDragging(false); if (currentX > SWIPE_THRESHOLD) { onEdit(alert); setCurrentX(0); } else if (currentX < -DELETE_THRESHOLD) { handleStartDeleteSequence(); } else { setCurrentX(0); } setStartX(null); };
-  const handleStartDeleteSequence = () => { if (navigator.vibrate) navigator.vibrate(50); setIsConfirmingDelete(true); setCurrentX(0); deleteTimerRef.current = setTimeout(() => { setIsDeleting(true); setTimeout(() => onDelete(alert.id), 300); }, 3000); };
+  const handleStartDeleteSequence = () => { if (hapticEnabled && navigator.vibrate) navigator.vibrate(50); setIsConfirmingDelete(true); setCurrentX(0); deleteTimerRef.current = setTimeout(() => { setIsDeleting(true); setTimeout(() => onDelete(alert.id), 300); }, 3000); };
   const handleUndo = () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current); setIsConfirmingDelete(false); setCurrentX(0); };
   const getSwipeBackground = () => { if (currentX > 0) return 'bg-indigo-600'; if (currentX < 0) return 'bg-red-600'; return 'bg-slate-900'; };
 
@@ -519,6 +537,135 @@ const AlertItem: React.FC<AlertItemProps> = ({ alert, onDelete, onEdit, onToggle
     </div>
   );
 };
+
+// --- COMPONENT: SettingsModal ---
+interface SettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  settings: UserSettings;
+  onUpdateSettings: (newSettings: UserSettings) => void;
+  onReset: () => void;
+}
+
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onUpdateSettings, onReset }) => {
+  const [localName, setLocalName] = useState(settings.userName);
+  const [resetStep, setResetStep] = useState(0);
+
+  useEffect(() => {
+    if (isOpen) {
+      setLocalName(settings.userName);
+      setResetStep(0);
+    }
+  }, [isOpen, settings]);
+
+  if (!isOpen) return null;
+
+  const handleSave = () => {
+    onUpdateSettings({ ...settings, userName: localName });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-800 overflow-hidden animate-slide-up">
+        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900">
+          <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+            <Settings size={20} className="text-slate-400" /> Impostazioni
+          </h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X size={24} /></button>
+        </div>
+        <div className="p-6 space-y-8">
+          
+          {/* Profile Section */}
+          <div className="space-y-3">
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+              <User size={14} /> Profilo
+            </label>
+            <input 
+              type="text" 
+              value={localName}
+              onChange={(e) => setLocalName(e.target.value)}
+              placeholder="Il tuo nome"
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-200 outline-none focus:border-indigo-500 transition-all"
+            />
+          </div>
+
+          {/* Preferences Section */}
+          <div className="space-y-3">
+             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Preferenze</label>
+             
+             <div className="flex items-center justify-between bg-slate-950 p-3 rounded-lg border border-slate-800">
+               <div className="flex items-center gap-3">
+                 {settings.soundEnabled ? <Volume2 size={20} className="text-indigo-400" /> : <VolumeX size={20} className="text-slate-600" />}
+                 <span className="text-slate-300 font-medium">Suoni</span>
+               </div>
+               <button 
+                 onClick={() => onUpdateSettings({ ...settings, soundEnabled: !settings.soundEnabled })}
+                 className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${settings.soundEnabled ? 'bg-indigo-600' : 'bg-slate-700'}`}
+               >
+                 <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-300 ${settings.soundEnabled ? 'left-7' : 'left-1'}`}></div>
+               </button>
+             </div>
+
+             <div className="flex items-center justify-between bg-slate-950 p-3 rounded-lg border border-slate-800">
+               <div className="flex items-center gap-3">
+                 {settings.hapticEnabled ? <Vibrate size={20} className="text-indigo-400" /> : <VibrateOff size={20} className="text-slate-600" />}
+                 <span className="text-slate-300 font-medium">Vibrazione</span>
+               </div>
+               <button 
+                 onClick={() => onUpdateSettings({ ...settings, hapticEnabled: !settings.hapticEnabled })}
+                 className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${settings.hapticEnabled ? 'bg-indigo-600' : 'bg-slate-700'}`}
+               >
+                 <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-300 ${settings.hapticEnabled ? 'left-7' : 'left-1'}`}></div>
+               </button>
+             </div>
+          </div>
+
+          {/* Danger Zone */}
+          <div className="space-y-3 pt-4 border-t border-slate-800">
+            <label className="block text-xs font-bold text-red-500 uppercase tracking-wider flex items-center gap-2">
+              <AlertTriangle size={14} /> Zona Pericolo
+            </label>
+            <button 
+              onClick={() => setResetStep(prev => prev + 1)}
+              className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
+                resetStep === 0 ? 'bg-slate-800 text-slate-400 hover:bg-red-950/30 hover:text-red-400' : 
+                resetStep === 1 ? 'bg-orange-600 text-white' : 'bg-red-600 text-white'
+              }`}
+            >
+              <LogOut size={18} />
+              {resetStep === 0 ? 'Resetta Dati App' : resetStep === 1 ? 'Sei sicuro? Clicca ancora' : 'Conferma Cancellazione'}
+            </button>
+            {resetStep === 2 && (
+               <button onClick={onReset} className="hidden"></button> /* Trigger handled in onClick above via logic check or separate effect, but keeping simpler: */
+            )}
+             {resetStep > 0 && resetStep < 3 && (
+                 <button onClick={() => setResetStep(0)} className="w-full py-2 text-slate-500 text-sm hover:text-slate-300">Annulla</button>
+             )}
+          </div>
+          
+           {resetStep === 2 && (
+             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90">
+                <div className="text-center p-6">
+                   <p className="text-red-500 font-bold text-xl mb-4">Cancellazione in corso...</p>
+                   {setTimeout(onReset, 1000) && null}
+                </div>
+             </div>
+           )}
+
+        </div>
+        
+        {/* Footer Actions */}
+        <div className="p-4 bg-slate-950 border-t border-slate-800">
+          <button onClick={handleSave} className="w-full bg-slate-100 text-slate-900 py-3 rounded-xl font-bold hover:bg-white transition-colors">
+            Salva Preferenze
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 // --- COMPONENT: AlertModal ---
 interface AlertModalProps {
@@ -617,6 +764,13 @@ const AlertModal: React.FC<AlertModalProps> = ({ isOpen, onClose, onSave, initia
 
 // --- MAIN APP COMPONENT ---
 function App() {
+  // State Settings
+  const [userSettings, setUserSettings] = useState<UserSettings>(() => {
+    const saved = localStorage.getItem('spesesmart_settings');
+    return saved ? JSON.parse(saved) : { userName: '', soundEnabled: true, hapticEnabled: true };
+  });
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   // State Transactions
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('spesesmart_transactions');
@@ -674,6 +828,7 @@ function App() {
   const [loadingAi, setLoadingAi] = useState(false);
 
   // Persistence
+  useEffect(() => { localStorage.setItem('spesesmart_settings', JSON.stringify(userSettings)); }, [userSettings]);
   useEffect(() => { localStorage.setItem('spesesmart_transactions', JSON.stringify(transactions)); }, [transactions]);
   useEffect(() => { localStorage.setItem('spesesmart_tasks', JSON.stringify(tasks)); }, [tasks]);
   useEffect(() => { localStorage.setItem('spesesmart_shopping', JSON.stringify(shoppingItems)); }, [shoppingItems]);
@@ -696,7 +851,7 @@ function App() {
           if (!a.notified && !a.completed && new Date(a.datetime) <= now) {
             hasChanges = true;
             // Trigger Notification
-            playNotificationSound();
+            playNotificationSound(userSettings.soundEnabled);
             if (Notification.permission === 'granted') {
               new Notification("Avviso Scaduto: " + a.title, { body: "Priorità: " + a.priority });
             }
@@ -709,7 +864,7 @@ function App() {
     }, 30000); // Check every 30s
 
     return () => clearInterval(interval);
-  }, []);
+  }, [userSettings.soundEnabled]);
 
   // Derived Data
   const monthlyTransactions = useMemo(() => {
@@ -772,6 +927,36 @@ function App() {
   ], [stats]);
 
   // Handlers
+  const handleResetData = () => {
+    localStorage.clear();
+    window.location.reload();
+  };
+
+  const handleShare = (type: 'todo' | 'shopping') => {
+     let text = "";
+     if (type === 'todo') {
+       text = "📝 *Lista Cose Da Fare*\n\n";
+       tasks.forEach(t => {
+         text += `${t.completed ? '✅' : '⬜'} ${t.text}\n`;
+       });
+     } else {
+       text = "🛒 *Lista Spesa*\n\n";
+       shoppingItems.forEach(i => {
+         text += `${i.completed ? '✅' : '⬜'} ${i.name} (${i.category})\n`;
+       });
+     }
+     
+     if (navigator.share) {
+       navigator.share({
+         title: type === 'todo' ? 'Le mie attività' : 'La mia lista spesa',
+         text: text,
+       }).catch(console.error);
+     } else {
+       navigator.clipboard.writeText(text);
+       alert("Copiato negli appunti!");
+     }
+  };
+
   const handleSaveTransaction = (amount: number, description: string, category: string, type: TransactionType, note: string, id?: string) => {
     if (id) {
       setTransactions(prev => prev.map(t => t.id === id ? { ...t, amount, description, category, type, note } : t));
@@ -857,12 +1042,20 @@ function App() {
       <header className="bg-slate-950/90 backdrop-blur-xl px-6 py-5 sticky top-0 z-30 border-b border-white/5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-tr from-indigo-600 to-violet-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 ring-1 ring-white/10"><Wallet size={20} strokeWidth={2.5} /></div>
-          <div className="flex flex-col"><h1 className="text-lg font-bold text-white tracking-tight leading-tight">SpeseSmart</h1><span className="text-[10px] font-medium text-slate-500 tracking-wider uppercase">Wallet</span></div>
+          <div className="flex flex-col">
+            <h1 className="text-lg font-bold text-white tracking-tight leading-tight">{userSettings.userName ? `Ciao, ${userSettings.userName}` : 'SpeseSmart'}</h1>
+            <span className="text-[10px] font-medium text-slate-500 tracking-wider uppercase">Wallet</span>
+          </div>
         </div>
-        <div className="flex items-center bg-slate-900/80 rounded-full p-1 ring-1 ring-white/10 shadow-sm">
-          <button onClick={() => changeMonth(-1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors"><ChevronLeft size={16} /></button>
-          <div className="relative px-3 h-8 flex items-center justify-center"><div className="flex items-baseline gap-1.5 text-sm"><span className="font-semibold text-white capitalize">{currentDate.toLocaleString('it-IT', { month: 'short' })}</span><span className="text-slate-500 font-medium text-xs">{currentDate.getFullYear()}</span></div><input type="month" value={currentMonthValue} onChange={handleDateSelect} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" /></div>
-          <button onClick={() => changeMonth(1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors"><ChevronRight size={16} /></button>
+        <div className="flex items-center gap-2">
+            <div className="flex items-center bg-slate-900/80 rounded-full p-1 ring-1 ring-white/10 shadow-sm">
+            <button onClick={() => changeMonth(-1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors"><ChevronLeft size={16} /></button>
+            <div className="relative px-3 h-8 flex items-center justify-center"><div className="flex items-baseline gap-1.5 text-sm"><span className="font-semibold text-white capitalize">{currentDate.toLocaleString('it-IT', { month: 'short' })}</span><span className="text-slate-500 font-medium text-xs">{currentDate.getFullYear()}</span></div><input type="month" value={currentMonthValue} onChange={handleDateSelect} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" /></div>
+            <button onClick={() => changeMonth(1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors"><ChevronRight size={16} /></button>
+            </div>
+            <button onClick={() => setIsSettingsOpen(true)} className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-900/80 ring-1 ring-white/10 text-slate-400 hover:text-white transition-colors">
+                <Settings size={20} />
+            </button>
         </div>
       </header>
 
@@ -877,27 +1070,39 @@ function App() {
                 <div className="flex items-center justify-center min-w-[32px] h-8 rounded-full bg-slate-900 border border-slate-800 text-slate-500"><Filter size={14} /></div>
                 {allCategories.map((cat) => ( <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${selectedCategory === cat ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/30' : 'bg-slate-900 text-slate-400 border border-slate-800 hover:border-slate-600'}`}>{cat}</button> ))}
              </div>
-             {displayedTransactions.length > 0 ? ( <div className="space-y-0"><div className="flex items-center gap-2 mb-2 px-2"><Info size={12} className="text-slate-600" /><span className="text-[10px] text-slate-600 uppercase tracking-wider">Doppio Clic: Note • Scorri: SX Elimina / DX Modifica</span></div>{displayedTransactions.map((t, index) => ( <TransactionItem key={t.id} transaction={t} onDelete={handleDelete} onEdit={handleEdit} isFirst={index === 0 && selectedCategory === 'Tutte'} /> ))}</div> ) : ( <div className="text-center py-12 opacity-50"><div className="bg-slate-900 border border-slate-800 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3"><Plus size={32} className="text-slate-600" /></div><p className="text-slate-400">Nessuna transazione.</p></div> )}
+             {displayedTransactions.length > 0 ? ( <div className="space-y-0"><div className="flex items-center gap-2 mb-2 px-2"><Info size={12} className="text-slate-600" /><span className="text-[10px] text-slate-600 uppercase tracking-wider">Doppio Clic: Note • Scorri: SX Elimina / DX Modifica</span></div>{displayedTransactions.map((t, index) => ( <TransactionItem key={t.id} transaction={t} onDelete={handleDelete} onEdit={handleEdit} isFirst={index === 0 && selectedCategory === 'Tutte'} hapticEnabled={userSettings.hapticEnabled} /> ))}</div> ) : ( <div className="text-center py-12 opacity-50"><div className="bg-slate-900 border border-slate-800 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3"><Plus size={32} className="text-slate-600" /></div><p className="text-slate-400">Nessuna transazione.</p></div> )}
           </div>
           </>
         )}
 
         {activeTab === 'doit' && (
           <div className="space-y-6 animate-fade-in">
-             <div className="flex items-center justify-between"><h2 className="text-xl font-bold text-slate-100">Do It</h2><span className="text-xs text-indigo-400 font-bold bg-indigo-950/30 border border-indigo-900/50 px-3 py-1 rounded-full">{tasks.filter(t => t.completed).length}/{tasks.length} Completati</span></div>
+             <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-slate-100">Do It</h2>
+                <div className="flex items-center gap-2">
+                    <span className="text-xs text-indigo-400 font-bold bg-indigo-950/30 border border-indigo-900/50 px-3 py-1 rounded-full">{tasks.filter(t => t.completed).length}/{tasks.length} Completati</span>
+                    <button onClick={() => handleShare('todo')} className="p-2 bg-slate-900 rounded-full text-slate-400 hover:text-white border border-slate-800"><Share2 size={16} /></button>
+                </div>
+             </div>
              <form onSubmit={handleAddTask} className="relative group"><input type="text" value={newTaskText} onChange={(e) => setNewTaskText(e.target.value)} placeholder="Aggiungi una nuova attività..." className="w-full bg-slate-900 border border-slate-800 text-slate-200 pl-4 pr-12 py-4 rounded-2xl outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all placeholder-slate-600" /><button type="submit" disabled={!newTaskText.trim()} className="absolute right-2 top-2 bottom-2 aspect-square bg-indigo-600 text-white rounded-xl flex items-center justify-center disabled:opacity-50 disabled:bg-slate-800 transition-all"><Plus size={20} /></button></form>
              <div className="space-y-3">
                <div className="flex items-center gap-2 mb-2 px-2"><Info size={12} className="text-slate-600" /><span className="text-[10px] text-slate-600 uppercase tracking-wider">Scorri verso SX per Eliminare</span></div>
-               {tasks.length > 0 ? ( tasks.sort((a,b) => (a.completed === b.completed ? 0 : a.completed ? 1 : -1)).map(task => ( <TaskItem key={task.id} task={task} onToggle={handleToggleTask} onDelete={handleDeleteTask} /> )) ) : ( <div className="text-center py-20 opacity-50 flex flex-col items-center"><div className="bg-slate-900 border border-slate-800 w-20 h-20 rounded-full flex items-center justify-center mb-4"><ListTodo size={32} className="text-slate-600" /></div><p className="text-slate-400">Nessuna attività in lista.</p></div> )}
+               {tasks.length > 0 ? ( tasks.sort((a,b) => (a.completed === b.completed ? 0 : a.completed ? 1 : -1)).map(task => ( <TaskItem key={task.id} task={task} onToggle={handleToggleTask} onDelete={handleDeleteTask} hapticEnabled={userSettings.hapticEnabled} /> )) ) : ( <div className="text-center py-20 opacity-50 flex flex-col items-center"><div className="bg-slate-900 border border-slate-800 w-20 h-20 rounded-full flex items-center justify-center mb-4"><ListTodo size={32} className="text-slate-600" /></div><p className="text-slate-400">Nessuna attività in lista.</p></div> )}
              </div>
           </div>
         )}
 
         {activeTab === 'shopping' && (
            <div className="space-y-6 animate-fade-in">
-              <div className="flex items-center justify-between"><h2 className="text-xl font-bold text-slate-100">Lista Spesa</h2><span className="text-xs text-indigo-400 font-bold bg-indigo-950/30 border border-indigo-900/50 px-3 py-1 rounded-full">{shoppingItems.filter(i => i.completed).length}/{shoppingItems.length} Presi</span></div>
+              <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-slate-100">Lista Spesa</h2>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-indigo-400 font-bold bg-indigo-950/30 border border-indigo-900/50 px-3 py-1 rounded-full">{shoppingItems.filter(i => i.completed).length}/{shoppingItems.length} Presi</span>
+                    <button onClick={() => handleShare('shopping')} className="p-2 bg-slate-900 rounded-full text-slate-400 hover:text-white border border-slate-800"><Share2 size={16} /></button>
+                  </div>
+              </div>
                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 -mx-4 px-4 sm:mx-0 sm:px-0"><div className="flex items-center justify-center min-w-[32px] h-8 rounded-full bg-slate-900 border border-slate-800 text-slate-500"><Filter size={14} /></div>{allShoppingCategories.map((cat) => ( <button key={cat} onClick={() => setSelectedShoppingCategory(cat)} className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${selectedShoppingCategory === cat ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/30' : 'bg-slate-900 text-slate-400 border border-slate-800 hover:border-slate-600'}`}>{cat}</button> ))}</div>
-              <div className="space-y-0">{shoppingItems.length > 0 ? ( <> <div className="flex items-center gap-2 mb-2 px-2"><Info size={12} className="text-slate-600" /><span className="text-[10px] text-slate-600 uppercase tracking-wider">Tocca per spuntare • Scorri: SX Elimina / DX Modifica</span></div> {displayedShoppingItems.map(item => ( <ShoppingListItem key={item.id} item={item} onToggle={handleToggleShoppingItem} onDelete={handleDeleteShoppingItem} onEdit={handleEditShoppingItem} /> ))} </> ) : ( <div className="text-center py-20 opacity-50 flex flex-col items-center"><div className="bg-slate-900 border border-slate-800 w-20 h-20 rounded-full flex items-center justify-center mb-4"><ShoppingCart size={32} className="text-slate-600" /></div><p className="text-slate-400">Lista della spesa vuota.</p></div> )}</div>
+              <div className="space-y-0">{shoppingItems.length > 0 ? ( <> <div className="flex items-center gap-2 mb-2 px-2"><Info size={12} className="text-slate-600" /><span className="text-[10px] text-slate-600 uppercase tracking-wider">Tocca per spuntare • Scorri: SX Elimina / DX Modifica</span></div> {displayedShoppingItems.map(item => ( <ShoppingListItem key={item.id} item={item} onToggle={handleToggleShoppingItem} onDelete={handleDeleteShoppingItem} onEdit={handleEditShoppingItem} hapticEnabled={userSettings.hapticEnabled} /> ))} </> ) : ( <div className="text-center py-20 opacity-50 flex flex-col items-center"><div className="bg-slate-900 border border-slate-800 w-20 h-20 rounded-full flex items-center justify-center mb-4"><ShoppingCart size={32} className="text-slate-600" /></div><p className="text-slate-400">Lista della spesa vuota.</p></div> )}</div>
            </div>
         )}
 
@@ -915,7 +1120,7 @@ function App() {
                       <span className="text-[10px] text-slate-600 uppercase tracking-wider">Doppio Clic: Fatto • Priorità colore</span>
                    </div>
                    {sortedAlerts.map(alert => (
-                     <AlertItem key={alert.id} alert={alert} onDelete={handleDeleteAlert} onEdit={handleEditAlert} onToggle={handleToggleAlert} />
+                     <AlertItem key={alert.id} alert={alert} onDelete={handleDeleteAlert} onEdit={handleEditAlert} onToggle={handleToggleAlert} hapticEnabled={userSettings.hapticEnabled} />
                    ))}
                  </>
                ) : (
@@ -1064,6 +1269,7 @@ function App() {
       <AddModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveTransaction} initialData={editingTransaction} expenseCategories={expenseCategories} incomeCategories={incomeCategories} onAddCategory={handleAddCategory} />
       <ShoppingModal isOpen={isShoppingModalOpen} onClose={() => setIsShoppingModalOpen(false)} onSave={handleSaveShoppingItem} initialData={editingShoppingItem} categories={shoppingCategories} onAddCategory={handleAddShoppingCategory} />
       <AlertModal isOpen={isAlertModalOpen} onClose={() => setIsAlertModalOpen(false)} onSave={handleSaveAlert} initialData={editingAlert} />
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={userSettings} onUpdateSettings={setUserSettings} onReset={handleResetData} />
 
       {/* Nav */}
       <nav className="fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 pb-safe pt-2 px-4 h-20 sm:max-w-lg sm:mx-auto z-20">
@@ -1082,7 +1288,7 @@ function App() {
 // --- RESTORED COMPONENTS FOR COMPLETENESS (TaskItem, ShoppingListItem, StatsCard, ShoppingModal, AddModal) ---
 // These are needed because we are outputting the full file.
 
-const TaskItem: React.FC<{task: Task, onToggle: (id: string) => void, onDelete: (id: string) => void}> = ({ task, onToggle, onDelete }) => {
+const TaskItem: React.FC<{task: Task, onToggle: (id: string) => void, onDelete: (id: string) => void, hapticEnabled: boolean}> = ({ task, onToggle, onDelete, hapticEnabled }) => {
   const [startX, setStartX] = useState<number | null>(null);
   const [currentX, setCurrentX] = useState<number>(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -1101,7 +1307,7 @@ const TaskItem: React.FC<{task: Task, onToggle: (id: string) => void, onDelete: 
   const handleMouseUp = () => handleSwipeEnd();
   const handleMouseLeave = () => { if (isDragging) handleSwipeEnd(); };
   const handleSwipeEnd = () => { setIsDragging(false); if (currentX < -DELETE_THRESHOLD) { handleStartDeleteSequence(); } else { setCurrentX(0); } setStartX(null); };
-  const handleStartDeleteSequence = () => { if (navigator.vibrate) navigator.vibrate(50); setIsConfirmingDelete(true); setCurrentX(0); deleteTimerRef.current = setTimeout(() => { setIsDeleting(true); setTimeout(() => onDelete(task.id), 300); }, 3000); };
+  const handleStartDeleteSequence = () => { if (hapticEnabled && navigator.vibrate) navigator.vibrate(50); setIsConfirmingDelete(true); setCurrentX(0); deleteTimerRef.current = setTimeout(() => { setIsDeleting(true); setTimeout(() => onDelete(task.id), 300); }, 3000); };
   const handleUndo = () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current); setIsConfirmingDelete(false); setCurrentX(0); };
 
   if (isDeleting) return <div className="h-[88px] mb-3 w-full bg-transparent transition-all duration-300 opacity-0 transform -translate-x-full"></div>;
@@ -1118,7 +1324,7 @@ const TaskItem: React.FC<{task: Task, onToggle: (id: string) => void, onDelete: 
   );
 };
 
-const ShoppingListItem: React.FC<{item: ShoppingItem, onToggle: (id: string) => void, onDelete: (id: string) => void, onEdit: (item: ShoppingItem) => void}> = ({ item, onToggle, onDelete, onEdit }) => {
+const ShoppingListItem: React.FC<{item: ShoppingItem, onToggle: (id: string) => void, onDelete: (id: string) => void, onEdit: (item: ShoppingItem) => void, hapticEnabled: boolean}> = ({ item, onToggle, onDelete, onEdit, hapticEnabled }) => {
   const [startX, setStartX] = useState<number | null>(null);
   const [currentX, setCurrentX] = useState<number>(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -1137,7 +1343,7 @@ const ShoppingListItem: React.FC<{item: ShoppingItem, onToggle: (id: string) => 
   const handleMouseUp = () => handleSwipeEnd();
   const handleMouseLeave = () => { if (isDragging) handleSwipeEnd(); };
   const handleSwipeEnd = () => { setIsDragging(false); if (currentX > SWIPE_THRESHOLD) { onEdit(item); setCurrentX(0); } else if (currentX < -DELETE_THRESHOLD) { handleStartDeleteSequence(); } else { setCurrentX(0); } setStartX(null); };
-  const handleStartDeleteSequence = () => { if (navigator.vibrate) navigator.vibrate(50); setIsConfirmingDelete(true); setCurrentX(0); deleteTimerRef.current = setTimeout(() => { setIsDeleting(true); setTimeout(() => onDelete(item.id), 300); }, 3000); };
+  const handleStartDeleteSequence = () => { if (hapticEnabled && navigator.vibrate) navigator.vibrate(50); setIsConfirmingDelete(true); setCurrentX(0); deleteTimerRef.current = setTimeout(() => { setIsDeleting(true); setTimeout(() => onDelete(item.id), 300); }, 3000); };
   const handleUndo = () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current); setIsConfirmingDelete(false); setCurrentX(0); };
   const getSwipeBackground = () => { if (currentX > 0) return 'bg-indigo-600'; if (currentX < 0) return 'bg-red-600'; return 'bg-slate-900'; };
 
