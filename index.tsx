@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { 
   Plus, Home, ShoppingCart, ListTodo, Bell, BarChart3, 
   Wallet, PieChart as PieChartIcon, ArrowRight, Sparkles, CheckCircle2, Circle, Trash2, AlertTriangle, Info,
   ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut, Calendar, Clock, User, Key, Lock, ExternalLink, ChevronDown, ChevronUp, Mail,
   Sun, Cloud, CloudRain, CloudSnow, CloudLightning, MapPin, Droplets, ThermometerSun, Smartphone, Layout, Volume2, Eye, EyeOff, History,
-  Flag, XCircle
+  Flag, XCircle, RefreshCcw
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
@@ -116,7 +116,10 @@ const WeatherWidget = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  const fetchWeather = useCallback(() => {
+    setLoading(true);
+    setError('');
+    
     if (!navigator.geolocation) {
       setError('GPS non supportato');
       setLoading(false);
@@ -150,6 +153,13 @@ const WeatherWidget = () => {
     );
   }, []);
 
+  useEffect(() => {
+    fetchWeather();
+    // Auto-refresh every 30 minutes
+    const interval = setInterval(fetchWeather, 30 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchWeather]);
+
   // Helper per icona meteo e descrizione
   const getWeatherIcon = (code: number) => {
     // WMO Weather interpretation codes
@@ -171,7 +181,7 @@ const WeatherWidget = () => {
   const { icon, label } = getWeatherIcon(current.weather_code);
 
   return (
-    <div className="bg-gradient-to-br from-slate-900 to-slate-950 p-4 rounded-xl border border-slate-800 mb-6 flex items-center justify-between relative overflow-hidden">
+    <div className="bg-gradient-to-br from-slate-900 to-slate-950 p-4 rounded-xl border border-slate-800 mb-6 flex items-center justify-between relative overflow-hidden group">
         {/* Background Accent */}
         <div className="absolute -right-6 -top-6 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl"></div>
 
@@ -192,8 +202,11 @@ const WeatherWidget = () => {
                 </div>
             </div>
         </div>
-        <div className="z-10 bg-slate-800/50 p-2 rounded-lg border border-slate-700/50 backdrop-blur-sm">
-             <MapPin size={20} className="text-indigo-400"/>
+        
+        <div className="flex flex-col gap-2 z-10">
+            <button onClick={fetchWeather} className="bg-slate-800/50 p-2 rounded-lg border border-slate-700/50 hover:bg-slate-700/50 transition-colors">
+                <RefreshCcw size={16} className={`text-slate-400 ${loading ? 'animate-spin' : ''}`}/>
+            </button>
         </div>
     </div>
   );
@@ -1029,7 +1042,7 @@ const App = () => {
             const timeB = new Date(`${b.date}T${b.time}`).getTime();
             const valA = isNaN(timeA) ? 0 : timeA;
             const valB = isNaN(timeB) ? 0 : timeB;
-            return Number(valA) - Number(valB);
+            return valA - valB;
         });
         
         return (
