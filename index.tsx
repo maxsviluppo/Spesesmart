@@ -239,6 +239,7 @@ const VoiceInput = ({ onResult }: { onResult: (text: string) => void }) => {
       if (transcript) {
           onResult(transcript);
       }
+      recognition.stop(); // Interrompi immediatamente l'uso del microfono
       setIsListening(false);
     };
 
@@ -1042,7 +1043,7 @@ const App = () => {
             const timeB = new Date(`${b.date}T${b.time}`).getTime();
             const valA = isNaN(timeA) ? 0 : timeA;
             const valB = isNaN(timeB) ? 0 : timeB;
-            return valA - valB;
+            return Number(valA) - Number(valB);
         });
         
         return (
