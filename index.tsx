@@ -217,16 +217,12 @@ const App = () => {
           onAddCategory={handleAddCategory}
         />
 
-        {/* Floating Action Button */}
-        <div className="fixed bottom-24 left-0 right-0 z-40 max-w-lg mx-auto pointer-events-none flex justify-end px-6">
+        {/* Floating Action Button - Positioned Right */}
+        <div className="fixed bottom-24 left-0 right-0 z-50 max-w-lg mx-auto pointer-events-none flex justify-end px-6">
           <button 
-            onClick={() => {
-              if (activeTab === 'home') handleOpenAddModal();
-              else if (activeTab === 'shopping') handleOpenShoppingModal();
-              else if (activeTab === 'alerts') handleOpenAlertModal();
-              else setActiveTab('home');
-            }} 
+            onClick={handleOpenAddModal} 
             className="pointer-events-auto w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-600/40 hover:scale-105 active:scale-95 transition-all"
+            aria-label="Aggiungi transazione"
           >
             <Plus size={28} />
           </button>
