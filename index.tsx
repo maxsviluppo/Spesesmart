@@ -149,6 +149,9 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
   const [isDragging, setIsDragging] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   
+  // Note Expansion State
+  const [isExpanded, setIsExpanded] = useState(false);
+  
   // Undo State
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -167,10 +170,10 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
 
   // Auto-swipe hint animation
   useEffect(() => {
-    if (!isFirst || isDeleting || isConfirmingDelete) return;
+    if (!isFirst || isDeleting || isConfirmingDelete || isExpanded) return;
 
     const interval = setInterval(() => {
-      if (isDragging || isDeleting || isConfirmingDelete) return; 
+      if (isDragging || isDeleting || isConfirmingDelete || isExpanded) return; 
 
       // Hint sequence
       setCurrentX(-40);
@@ -186,17 +189,17 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [isFirst, isDragging, isDeleting, isConfirmingDelete]);
+  }, [isFirst, isDragging, isDeleting, isConfirmingDelete, isExpanded]);
 
   // Touch Handlers
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (isConfirmingDelete) return; // Disable swipe when in undo mode
+    if (isConfirmingDelete || isExpanded) return; // Disable swipe when undo mode or expanded
     setStartX(e.touches[0].clientX);
     setIsDragging(true);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (startX === null || isDeleting || isConfirmingDelete) return;
+    if (startX === null || isDeleting || isConfirmingDelete || isExpanded) return;
     const x = e.touches[0].clientX;
     const diff = x - startX;
     
@@ -209,18 +212,19 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
+    if (isExpanded) return;
     handleSwipeEnd();
   };
 
   // Mouse Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (isConfirmingDelete) return;
+    if (isConfirmingDelete || isExpanded) return;
     setStartX(e.clientX);
     setIsDragging(true);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || startX === null || isDeleting || isConfirmingDelete) return;
+    if (!isDragging || startX === null || isDeleting || isConfirmingDelete || isExpanded) return;
     e.preventDefault(); 
     
     const x = e.clientX;
@@ -234,6 +238,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
   };
 
   const handleMouseUp = (e: React.MouseEvent) => {
+    if (isExpanded) return;
     handleSwipeEnd();
   };
 
@@ -286,6 +291,12 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
       setCurrentX(0);
   };
 
+  // Toggle Read-Only Note
+  const handleDoubleClick = () => {
+    if (isDragging || isDeleting || isConfirmingDelete) return;
+    setIsExpanded(!isExpanded);
+  };
+
   // Helper to determine background color
   const getSwipeBackground = () => {
     if (currentX > 0) return 'bg-indigo-600'; // Edit Color
@@ -329,9 +340,10 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
   // --- NORMAL VIEW ---
   return (
     <div 
-      className={`relative mb-3 w-full h-[88px] overflow-hidden rounded-xl select-none touch-pan-y transition-all duration-300`}
+      className={`relative mb-3 w-full ${isExpanded ? 'h-auto min-h-[88px]' : 'h-[88px]'} overflow-hidden rounded-xl select-none touch-pan-y transition-all duration-300`}
       onMouseLeave={handleMouseLeave}
       onMouseUp={handleMouseUp}
+      onDoubleClick={handleDoubleClick}
       style={{ touchAction: 'pan-y' }}
     >
       {/* Background Layer (Actions) */}
@@ -360,7 +372,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
         onMouseMove={handleMouseDown}
       >
         {/* Main Content Row */}
-        <div className="flex items-center justify-between p-4 h-full">
+        <div className="flex items-center justify-between p-4 h-[88px]">
           <div className="flex items-center gap-3 pointer-events-none">
             <div className={`p-2 rounded-full ${isExpense ? 'bg-red-950/30 text-red-400' : 'bg-emerald-950/30 text-emerald-400'}`}>
               {isExpense ? <ArrowDownCircle size={24} /> : <ArrowUpCircle size={24} />}
@@ -385,6 +397,28 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
             )}
           </div>
         </div>
+
+        {/* Read-Only Note Box (Visible only when expanded) */}
+        {isExpanded && (
+          <div 
+            className="w-full bg-slate-950/50 border-t border-slate-800 p-4 animate-fade-in cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation(); // Stop propagation to avoid swipe interference
+              setIsExpanded(false); // Click to close
+            }}
+          >
+             <div className="flex items-start gap-2 mb-2">
+                <FileText size={14} className="text-slate-500 mt-0.5" />
+                <span className="text-[10px] uppercase font-bold text-slate-500">Nota</span>
+             </div>
+             <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
+               {transaction.note ? transaction.note : <span className="text-slate-600 italic">Nessuna nota inserita.</span>}
+             </p>
+             <div className="mt-3 flex justify-center">
+                <span className="text-[10px] text-slate-600 uppercase font-bold tracking-wider">Tocca per chiudere</span>
+             </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -801,8 +835,6 @@ function App() {
     }
   };
 
-  // REMOVED handleUpdateNote
-
   const handleAddCategory = (newCategory: string, type: TransactionType) => {
     if (type === 'expense') {
       if (!expenseCategories.includes(newCategory)) {
@@ -1031,7 +1063,7 @@ function App() {
                <div className="space-y-0">
                  <div className="flex items-center gap-2 mb-2 px-2">
                     <Info size={12} className="text-slate-600" />
-                    <span className="text-[10px] text-slate-600 uppercase tracking-wider">Scorri: SX Elimina • DX Modifica</span>
+                    <span className="text-[10px] text-slate-600 uppercase tracking-wider">Doppio Clic: Note • Scorri: SX Elimina / DX Modifica</span>
                  </div>
                  {displayedTransactions.map((t, index) => (
                    <TransactionItem 
