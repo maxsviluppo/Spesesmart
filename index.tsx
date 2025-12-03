@@ -31,7 +31,8 @@ import {
   ShoppingBag,
   Bell,
   Clock,
-  AlertCircle
+  AlertCircle,
+  CheckCircle
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -85,6 +86,7 @@ export interface Alert {
   datetime: string; // ISO String containing date and time
   priority: PriorityLevel;
   notified: boolean; // To prevent double notifications
+  completed: boolean; // New field for completion status
 }
 
 export const DEFAULT_EXPENSE_CATEGORIES = [
@@ -418,9 +420,10 @@ interface AlertItemProps {
   alert: Alert;
   onDelete: (id: string) => void;
   onEdit: (alert: Alert) => void;
+  onToggle: (id: string) => void;
 }
 
-const AlertItem: React.FC<AlertItemProps> = ({ alert, onDelete, onEdit }) => {
+const AlertItem: React.FC<AlertItemProps> = ({ alert, onDelete, onEdit, onToggle }) => {
   const [startX, setStartX] = useState<number | null>(null);
   const [currentX, setCurrentX] = useState<number>(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -429,7 +432,8 @@ const AlertItem: React.FC<AlertItemProps> = ({ alert, onDelete, onEdit }) => {
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const alertDate = new Date(alert.datetime);
-  const isExpired = new Date() > alertDate;
+  const isCompleted = alert.completed;
+  const isExpired = !isCompleted && new Date() > alertDate;
 
   useEffect(() => { return () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current); }; }, []);
 
@@ -447,11 +451,17 @@ const AlertItem: React.FC<AlertItemProps> = ({ alert, onDelete, onEdit }) => {
   const handleUndo = () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current); setIsConfirmingDelete(false); setCurrentX(0); };
   const getSwipeBackground = () => { if (currentX > 0) return 'bg-indigo-600'; if (currentX < 0) return 'bg-red-600'; return 'bg-slate-900'; };
 
+  const handleDoubleClick = () => {
+    if (isDragging || isDeleting || isConfirmingDelete) return;
+    onToggle(alert.id);
+  };
+
   if (isDeleting) return <div className="h-[88px] mb-3 w-full bg-transparent transition-all duration-300 opacity-0 transform -translate-x-full"></div>;
   if (isConfirmingDelete) return ( <div className="relative mb-3 h-[88px] w-full bg-red-950/40 border border-red-900/50 rounded-xl flex items-center justify-between px-6 animate-fade-in overflow-hidden"> <div className="absolute bottom-0 left-0 h-1 bg-red-600/50 w-full animate-[shrink_3s_linear_forwards]" style={{ animationName: 'shrinkWidth' }}></div> <style>{`@keyframes shrinkWidth { from { width: 100%; } to { width: 0%; } }`}</style> <div className="flex items-center gap-2 text-red-400"> <Trash2 size={20} /> <span className="font-medium text-sm">Eliminato</span> </div> <button onClick={handleUndo} className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm border border-slate-700 transition-colors z-10"> <RotateCcw size={16} /> Annulla </button> </div> );
 
   // Priority Color Logic
   const getPriorityColor = () => {
+    if (isCompleted) return 'border-l-emerald-500';
     switch (alert.priority) {
       case 'high': return 'border-l-red-500';
       case 'medium': return 'border-l-orange-500';
@@ -465,6 +475,7 @@ const AlertItem: React.FC<AlertItemProps> = ({ alert, onDelete, onEdit }) => {
       className="relative mb-3 h-[88px] w-full overflow-hidden rounded-xl select-none touch-pan-y"
       onMouseLeave={handleMouseLeave}
       onMouseUp={handleMouseUp}
+      onDoubleClick={handleDoubleClick}
       style={{ touchAction: 'pan-y' }}
     >
       <div className={`absolute inset-0 flex items-center justify-between px-6 transition-colors ${getSwipeBackground()}`}>
@@ -477,7 +488,7 @@ const AlertItem: React.FC<AlertItemProps> = ({ alert, onDelete, onEdit }) => {
       </div>
 
       <div 
-        className={`relative h-full bg-slate-900 flex items-center justify-between p-4 border border-slate-800 rounded-xl transition-transform ease-out border-l-4 ${getPriorityColor()}`}
+        className={`relative h-full flex items-center justify-between p-4 border rounded-xl transition-all ease-out border-l-4 ${getPriorityColor()} ${isCompleted ? 'bg-emerald-950/20 border-emerald-900/30' : 'bg-slate-900 border-slate-800'}`}
         style={{ 
           transform: `translateX(${currentX}px)`,
           transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)' 
@@ -485,17 +496,18 @@ const AlertItem: React.FC<AlertItemProps> = ({ alert, onDelete, onEdit }) => {
         onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}
       >
         <div className="flex items-center gap-4 pointer-events-none w-full">
-           <div className={`p-2 rounded-full ${isExpired ? 'bg-red-950/40 text-red-500 animate-pulse' : 'bg-slate-800 text-slate-400'}`}>
-              <Bell size={20} />
+           <div className={`p-2 rounded-full transition-colors ${isCompleted ? 'bg-emerald-900/50 text-emerald-400' : (isExpired ? 'bg-red-950/40 text-red-500 animate-pulse' : 'bg-slate-800 text-slate-400')}`}>
+              {isCompleted ? <CheckCircle size={20} /> : <Bell size={20} />}
            </div>
            <div className="flex-1 min-w-0">
              <div className="flex justify-between items-start">
-               <p className={`font-medium truncate ${isExpired ? 'text-red-400' : 'text-slate-200'}`}>{alert.title}</p>
-               {isExpired && <span className="text-[10px] font-bold bg-red-900/50 text-red-300 px-2 py-0.5 rounded ml-2">SCADUTO</span>}
+               <p className={`font-medium truncate ${isCompleted ? 'text-emerald-400/90 line-through decoration-emerald-600/50' : (isExpired ? 'text-red-400' : 'text-slate-200')}`}>{alert.title}</p>
+               {isCompleted && <span className="text-[10px] font-bold bg-emerald-900/50 text-emerald-300 px-2 py-0.5 rounded ml-2">COMPLETATO</span>}
+               {!isCompleted && isExpired && <span className="text-[10px] font-bold bg-red-900/50 text-red-300 px-2 py-0.5 rounded ml-2">SCADUTO</span>}
              </div>
              <div className="flex items-center gap-2 mt-1">
-               <Clock size={12} className="text-slate-500" />
-               <p className="text-xs text-slate-500">
+               <Clock size={12} className={isCompleted ? "text-emerald-600/70" : "text-slate-500"} />
+               <p className={`text-xs ${isCompleted ? 'text-emerald-600/70' : 'text-slate-500'}`}>
                  {alertDate.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}
                  <span className="mx-1">•</span>
                  {alertDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
@@ -631,7 +643,9 @@ function App() {
   // State Alerts
   const [alerts, setAlerts] = useState<Alert[]>(() => {
     const saved = localStorage.getItem('spesesmart_alerts');
-    return saved ? JSON.parse(saved) : [];
+    const parsed = saved ? JSON.parse(saved) : [];
+    // Migrate old alerts to have completed field
+    return parsed.map((a: any) => ({ ...a, completed: a.completed || false }));
   });
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
   const [editingAlert, setEditingAlert] = useState<Alert | null>(null);
@@ -679,7 +693,7 @@ function App() {
       setAlerts(prev => {
         let hasChanges = false;
         const newAlerts = prev.map(a => {
-          if (!a.notified && new Date(a.datetime) <= now) {
+          if (!a.notified && !a.completed && new Date(a.datetime) <= now) {
             hasChanges = true;
             // Trigger Notification
             playNotificationSound();
@@ -770,12 +784,13 @@ function App() {
     if (id) {
       setAlerts(prev => prev.map(a => a.id === id ? { ...a, title, datetime, priority } : a));
     } else {
-      setAlerts(prev => [...prev, { id: crypto.randomUUID(), title, datetime, priority, notified: false }]);
+      setAlerts(prev => [...prev, { id: crypto.randomUUID(), title, datetime, priority, notified: false, completed: false }]);
     }
   };
 
   const handleDeleteAlert = (id: string) => setAlerts(prev => prev.filter(a => a.id !== id));
   const handleEditAlert = (alert: Alert) => { setEditingAlert(alert); setIsAlertModalOpen(true); };
+  const handleToggleAlert = (id: string) => { setAlerts(prev => prev.map(a => a.id === id ? { ...a, completed: !a.completed } : a)); };
   const handleOpenAlertModal = () => { setEditingAlert(null); setIsAlertModalOpen(true); };
 
   const handleAddCategory = (newCategory: string, type: TransactionType) => {
@@ -897,10 +912,10 @@ function App() {
                  <>
                    <div className="flex items-center gap-2 mb-2 px-2">
                       <Info size={12} className="text-slate-600" />
-                      <span className="text-[10px] text-slate-600 uppercase tracking-wider">Margine colorato indica priorità</span>
+                      <span className="text-[10px] text-slate-600 uppercase tracking-wider">Doppio Clic: Fatto • Priorità colore</span>
                    </div>
                    {sortedAlerts.map(alert => (
-                     <AlertItem key={alert.id} alert={alert} onDelete={handleDeleteAlert} onEdit={handleEditAlert} />
+                     <AlertItem key={alert.id} alert={alert} onDelete={handleDeleteAlert} onEdit={handleEditAlert} onToggle={handleToggleAlert} />
                    ))}
                  </>
                ) : (
