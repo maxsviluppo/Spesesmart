@@ -53,7 +53,8 @@ import {
   XCircle,
   Layout,
   Smartphone,
-  Mic
+  Mic,
+  MicOff
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -240,28 +241,61 @@ const MicButton: React.FC<MicButtonProps> = ({ onResult, className = "" }) => {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
 
+  // Clean up on unmount to ensure no background listening
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort(); // Forcefully stop system mic
+        recognitionRef.current = null;
+      }
+    };
+  }, []);
+
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
+
   const startListening = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       alert("Il tuo browser non supporta la dettatura vocale.");
       return;
     }
 
+    if (navigator.vibrate) navigator.vibrate(50); // Haptic feedback on start
+
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
+    
     recognition.lang = 'it-IT';
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.continuous = false; // Important: Stops automatically on silence
+    recognition.interimResults = false; // We only want final results
 
-    recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => setIsListening(false);
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      // Clean instance
+      recognitionRef.current = null;
+    };
+
     recognition.onerror = (event: any) => {
       console.error("Speech error", event.error);
       setIsListening(false);
+      recognitionRef.current = null;
     };
 
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
-      onResult(transcript);
+      if (transcript) {
+        onResult(transcript);
+        if (navigator.vibrate) navigator.vibrate([30, 30]); // Double tap haptic on success
+      }
     };
 
     recognitionRef.current = recognition;
@@ -270,7 +304,10 @@ const MicButton: React.FC<MicButtonProps> = ({ onResult, className = "" }) => {
 
   const stopListening = () => {
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      recognitionRef.current.stop(); // Use stop() to try and get last result, or abort() to kill immediately
+      // If we want immediate kill without waiting for result:
+      // recognitionRef.current.abort();
+      if (navigator.vibrate) navigator.vibrate(50);
       setIsListening(false);
     }
   };
@@ -278,11 +315,15 @@ const MicButton: React.FC<MicButtonProps> = ({ onResult, className = "" }) => {
   return (
     <button
       type="button"
-      onClick={isListening ? stopListening : startListening}
-      className={`p-2 rounded-full transition-all ${isListening ? 'bg-red-500/20 text-red-500 animate-pulse' : 'text-slate-400 hover:text-indigo-400'} ${className}`}
-      title="Dettatura vocale"
+      onClick={toggleListening}
+      className={`p-2 rounded-full transition-all duration-200 ${
+        isListening 
+          ? 'bg-red-500 text-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]' 
+          : 'text-slate-400 hover:text-indigo-400 hover:bg-white/5'
+      } ${className}`}
+      title={isListening ? "Tocca per fermare" : "Tocca per parlare"}
     >
-      <Mic size={18} />
+      {isListening ? <MicOff size={18} /> : <Mic size={18} />}
     </button>
   );
 };
