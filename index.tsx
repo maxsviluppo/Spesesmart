@@ -865,7 +865,7 @@ const App = () => {
           <div className="flex justify-around items-center h-16">
               {[
                 {id:'home', icon:Home, l:'Home'}, {id:'shopping', icon:ShoppingCart, l:'Spesa'}, 
-                {id:'doit', icon:ListTodo, l:'Do It'}, {id:'alerts', icon:Bell, l:'Avvisi'}, {id:'reports', icon:BarChart3, l:'Report'}
+                {id:'doit', icon:ListTodo, l:'Do It'}, {id:'alerts', icon:Bell, l:'Avvisi'}, {id:'reports', icon:PieChart, l:'Grafico'}
               ].map(i => (
                 <button key={i.id} onClick={() => setActiveTab(i.id as any)} className={`flex flex-col items-center justify-center w-14 ${activeTab === i.id ? 'text-indigo-400' : 'text-slate-500'}`}>
                   <i.icon size={22} className={activeTab === i.id ? 'fill-indigo-400/20' : ''}/><span className="text-[9px] font-bold mt-1">{i.l}</span>
