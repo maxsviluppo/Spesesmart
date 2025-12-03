@@ -1240,12 +1240,10 @@ function App() {
 
                     <a 
                       href="mailto:castromassimo@gmail.com"
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900 border border-slate-800 text-slate-400 text-xs hover:text-white hover:border-indigo-500 hover:shadow-[0_0_15px_-3px_rgba(99,102,241,0.3)] transition-all duration-300 group"
+                      className="inline-flex items-center justify-center p-3 rounded-full bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-indigo-500 hover:bg-slate-800/50 hover:shadow-[0_0_15px_-3px_rgba(99,102,241,0.3)] transition-all duration-300 group"
+                      aria-label="Invia Email"
                     >
-                      <div className="p-1 bg-slate-800 rounded-full group-hover:bg-indigo-600 transition-colors">
-                          <Mail size={12} className="text-slate-300 group-hover:text-white" />
-                      </div>
-                      <span>castromassimo@gmail.com</span>
+                      <Mail size={20} className="text-indigo-400 group-hover:text-indigo-300 transition-colors" />
                     </a>
                 </div>
             </div>
