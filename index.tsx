@@ -46,7 +46,8 @@ import {
   XCircle,
   Layout,
   Mic,
-  BarChart3
+  BarChart3,
+  Home
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -277,14 +278,10 @@ const MicButton: React.FC<MicButtonProps> = ({ onResult, className = "" }) => {
 
       recognition.onerror = (event: any) => {
         console.warn("Speech error", event.error);
-        // Silent fail or toast could go here, but prevent crash
         setIsListening(false);
         setInterimText('');
         recognitionRef.current = null;
         isBusyRef.current = false;
-        if (event.error === 'not-allowed') {
-          alert("Permesso microfono negato.");
-        }
       };
 
       recognition.onresult = (event: any) => {
@@ -318,13 +315,16 @@ const MicButton: React.FC<MicButtonProps> = ({ onResult, className = "" }) => {
 
   const stopListening = () => {
     if (recognitionRef.current) {
-      recognitionRef.current.stop(); // Try to stop gracefully to get result
+      recognitionRef.current.abort(); // Force abort to stop immediately
+      recognitionRef.current = null;
+      setIsListening(false);
+      isBusyRef.current = false;
       if (navigator.vibrate) navigator.vibrate(30);
     }
   };
 
   const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent form submission
+    e.preventDefault(); 
     e.stopPropagation();
     if (isListening) {
       stopListening();
@@ -337,22 +337,22 @@ const MicButton: React.FC<MicButtonProps> = ({ onResult, className = "" }) => {
     <div className={`relative inline-block ${className}`}>
       {/* Real-time Preview Bubble */}
       {isListening && interimText && (
-        <div className="absolute bottom-full mb-2 right-0 bg-indigo-600 text-white text-xs px-3 py-1 rounded-lg shadow-lg whitespace-nowrap animate-fade-in z-50 pointer-events-none">
+        <div className="absolute bottom-full mb-2 right-0 bg-indigo-600 text-white text-xs px-3 py-1 rounded-lg shadow-lg whitespace-nowrap animate-fade-in z-50 pointer-events-none border border-white/20">
           {interimText}...
         </div>
       )}
       
       <button
-        type="button"
+        type="button" 
         onClick={handleClick}
-        className={`p-2 rounded-full transition-all duration-200 relative z-20 ${
+        className={`p-2 rounded-full transition-all duration-200 relative z-20 flex items-center justify-center ${
           isListening 
-            ? 'bg-red-500 text-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]' 
+            ? 'bg-red-500 text-white animate-mic-wave' 
             : 'text-slate-400 hover:text-indigo-400 hover:bg-white/5'
         }`}
         title={isListening ? "Tocca per fermare" : "Dettatura vocale"}
       >
-        <Mic size={20} className={isListening ? "animate-bounce" : ""} />
+        <Mic size={20} className={isListening ? "animate-pulse" : ""} />
       </button>
     </div>
   );
@@ -1066,7 +1066,14 @@ const AlertModal: React.FC<AlertModalProps> = ({ isOpen, onClose, onSave, initia
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div className="relative">
             <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Titolo</label>
-            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Pagare bolletta" className="w-full text-xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 pr-12 bg-transparent" required />
+            <input 
+               type="text" 
+               value={title} 
+               onChange={(e) => setTitle(e.target.value)} 
+               placeholder="Es. Pagare bolletta" 
+               className="w-full text-xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 pr-12 bg-transparent" 
+               required 
+            />
             <MicButton onResult={(text) => setTitle(prev => prev ? prev + ' ' + text : text)} className="absolute right-2 bottom-2 z-20" />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -1845,18 +1852,18 @@ function App() {
                    value={newTaskText} 
                    onChange={(e) => setNewTaskText(e.target.value)} 
                    placeholder="Aggiungi una nuova attività..." 
-                   className="w-full bg-slate-900 border border-slate-800 text-slate-200 pl-4 pr-12 py-4 rounded-2xl outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all placeholder-slate-600" 
+                   className="w-full bg-slate-900 border border-slate-800 text-slate-200 pl-4 pr-28 py-4 rounded-2xl outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all placeholder-slate-600" 
                  />
-               </div>
-               <div className="flex items-center gap-2">
-                 <MicButton onResult={(res) => setNewTaskText(prev => prev ? prev + ' ' + res : res)} className="" />
-                 <button 
-                   type="submit" 
-                   disabled={!newTaskText.trim()} 
-                   className="w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center disabled:opacity-50 disabled:bg-slate-800 transition-all shadow-lg shadow-indigo-900/20"
-                 >
-                   <Plus size={24} />
-                 </button>
+                 <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <MicButton onResult={(res) => setNewTaskText(prev => prev ? prev + ' ' + res : res)} />
+                    <button 
+                      type="submit" 
+                      disabled={!newTaskText.trim()} 
+                      className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center disabled:opacity-50 disabled:bg-slate-800 transition-all shadow-lg shadow-indigo-900/20"
+                    >
+                      <Plus size={20} />
+                    </button>
+                 </div>
                </div>
              </form>
              <div className="space-y-3">
@@ -1964,132 +1971,155 @@ function App() {
                      <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} interval={2} />
                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px' }} itemStyle={{ color: '#f8fafc' }} />
-                     <Line type="monotone" dataKey="expense" stroke="#818cf8" strokeWidth={3} dot={{ fill: '#818cf8', strokeWidth: 2 }} activeDot={{ r: 6, fill: '#fff' }} />
+                     <Line type="monotone" dataKey="expense" stroke="#818cf8" strokeWidth={3} dot={{ fill: '#818cf8', strokeWidth: 2 }} activeDot={{ r: 6, fill: '#818cf8' }} />
                    </LineChart>
                  </ResponsiveContainer>
                </div>
-            </div>
+             </div>
 
-            {/* Category Breakdown Section */}
-            <div className="bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-800">
-              <h3 className="font-bold text-slate-100 mb-6 flex items-center gap-2"><PieChart size={18} className="text-purple-400" />Distribuzione Spese</h3>
-              {categoryData.length > 0 ? ( 
-                <>
-                  <div className="h-64 w-full mb-8">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RePieChart>
-                        <Pie data={categoryData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none" onMouseEnter={onPieEnter} isAnimationActive={true} animationBegin={0} animationDuration={800} animationEasing="ease-out" {...{ activeIndex, activeShape: renderActiveShape } as any}>
-                          {categoryData.map((entry, index) => ( <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} /> ))}
-                        </Pie>
-                      </RePieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  
-                  {/* Detailed List */}
-                  <div className="space-y-4">
-                    {categoryData.map((entry, index) => {
-                      const percentage = (entry.value / stats.totalExpense) * 100;
-                      return (
-                        <div key={entry.name} className="flex flex-col gap-1">
-                          <div className="flex justify-between items-center text-sm">
-                             <div className="flex items-center gap-2">
-                               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
-                               <span className="text-slate-300 font-medium">{entry.name}</span>
-                             </div>
-                             <div className="flex items-center gap-2">
-                               <span className="text-slate-400 text-xs">{percentage.toFixed(1)}%</span>
-                               <span className="text-slate-100 font-bold">€{entry.value.toFixed(2)}</span>
-                             </div>
-                          </div>
-                          <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${percentage}%`, backgroundColor: COLORS[index % COLORS.length] }}></div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              ) : ( 
-                <p className="text-center text-slate-600 py-10">Nessuna spesa da analizzare.</p> 
-              )}
-            </div>
+             {/* Categories Section */}
+             <div className="bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-800">
+                <h3 className="font-bold text-slate-100 mb-4 flex items-center gap-2">
+                  <PieChart size={18} className="text-pink-400" />
+                  Spese per Categoria
+                </h3>
+                <div className="h-64 w-full relative">
+                   <ResponsiveContainer width="100%" height="100%">
+                     <RePieChart>
+                       <Pie 
+                         activeIndex={activeIndex}
+                         activeShape={renderActiveShape} 
+                         data={categoryData} 
+                         cx="50%" 
+                         cy="50%" 
+                         innerRadius={60} 
+                         outerRadius={80} 
+                         fill="#8884d8" 
+                         dataKey="value" 
+                         onMouseEnter={onPieEnter}
+                       >
+                         {categoryData.map((entry, index) => (
+                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#0E1629" strokeWidth={2} />
+                         ))}
+                       </Pie>
+                     </RePieChart>
+                   </ResponsiveContainer>
+                </div>
+                {/* Category List Details */}
+                <div className="mt-6 space-y-4">
+                  {categoryData.map((item, index) => (
+                    <div key={item.name} className="space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-300 font-medium flex items-center gap-2">
+                           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                           {item.name}
+                        </span>
+                        <span className="text-slate-100 font-bold">€{item.value.toLocaleString()}</span>
+                      </div>
+                      <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${(item.value / stats.totalExpense) * 100}%`, backgroundColor: COLORS[index % COLORS.length] }}></div>
+                      </div>
+                    </div>
+                  ))}
+                  {categoryData.length === 0 && <p className="text-center text-slate-500 text-sm py-4">Nessuna spesa registrata questo mese.</p>}
+                </div>
+             </div>
           </div>
         )}
-
-        <div className="pt-10 pb-4">
-            <div className="relative py-6">
-                <div className="absolute top-0 left-10 right-10 h-px bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50 shadow-[0_0_8px_rgba(99,102,241,1)]"></div>
-                <div className="text-center space-y-3"><div><h3 className="text-xs font-black text-slate-300 tracking-[0.2em] uppercase">DevTools</h3><p className="text-[10px] font-medium text-indigo-400 tracking-widest uppercase mt-0.5">By Castro Massimo</p></div><p className="text-[10px] text-slate-500 leading-relaxed px-4 max-w-xs mx-auto">Questa App è realizzata da DevTools by Castro Massimo.<br/>Se hai bisogno di supporto, segnalazioni o di WebApp personalizzate contattaci.</p><a href="mailto:castromassimo@gmail.com" className="inline-flex items-center justify-center p-3 rounded-full bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-indigo-500 hover:bg-slate-800/50 hover:shadow-[0_0_15px_-3px_rgba(99,102,241,0.3)] transition-all duration-300 group" aria-label="Invia Email"><Mail size={20} className="text-indigo-400 group-hover:text-indigo-300 transition-colors" /></a></div>
-            </div>
-        </div>
       </main>
-
-      {/* FAB */}
-      {activeTab !== 'doit' && (
-        <button
-          onClick={() => {
-            if (activeTab === 'shopping') handleOpenShoppingModal();
-            else if (activeTab === 'alerts') handleOpenAlertModal();
-            else handleOpenAddModal();
-          }}
-          className="fixed bottom-24 right-4 sm:right-[calc(50%-240px+1rem)] bg-indigo-600 text-white p-4 rounded-full shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 active:scale-90 transition-all z-20"
-          aria-label="Aggiungi"
-        >
-          <Plus size={28} />
-        </button>
-      )}
-
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-[#0E1629]/90 backdrop-blur-xl border-t border-white/5 pb-6 pt-2 px-6 z-30">
-        <div className="flex justify-between items-center max-w-lg mx-auto">
-          <button 
-            onClick={() => setActiveTab('home')} 
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-300 ${activeTab === 'home' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            <Wallet size={24} strokeWidth={activeTab === 'home' ? 2.5 : 2} className={activeTab === 'home' ? 'drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]' : ''} />
-            <span className="text-[10px] font-bold">Home</span>
-          </button>
-
-          <button 
-            onClick={() => setActiveTab('shopping')} 
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-300 ${activeTab === 'shopping' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            <ShoppingCart size={24} strokeWidth={activeTab === 'shopping' ? 2.5 : 2} className={activeTab === 'shopping' ? 'drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]' : ''} />
-            <span className="text-[10px] font-bold">Spesa</span>
-          </button>
-
-          <button 
-            onClick={() => setActiveTab('doit')} 
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-300 ${activeTab === 'doit' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            <ListTodo size={24} strokeWidth={activeTab === 'doit' ? 2.5 : 2} className={activeTab === 'doit' ? 'drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]' : ''} />
-            <span className="text-[10px] font-bold">Do It</span>
-          </button>
-
-          <button 
-            onClick={() => setActiveTab('alerts')} 
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-300 ${activeTab === 'alerts' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            <Bell size={24} strokeWidth={activeTab === 'alerts' ? 2.5 : 2} className={activeTab === 'alerts' ? 'drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]' : ''} />
-            <span className="text-[10px] font-bold">Avvisi</span>
-          </button>
-
-          <button 
-            onClick={() => setActiveTab('reports')} 
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-300 ${activeTab === 'reports' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            <BarChart3 size={24} strokeWidth={activeTab === 'reports' ? 2.5 : 2} className={activeTab === 'reports' ? 'drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]' : ''} />
-            <span className="text-[10px] font-bold">Report</span>
-          </button>
-        </div>
+      
+      {/* Footer Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-[#0E1629]/95 backdrop-blur-xl border-t border-slate-800 pb-safe z-40 max-w-lg mx-auto">
+         <div className="flex justify-around items-center h-16 px-2">
+            <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center justify-center w-14 transition-all ${activeTab === 'home' ? 'text-indigo-400 scale-110' : 'text-slate-500 hover:text-slate-300'}`}>
+               <Home size={22} className={activeTab === 'home' ? 'fill-indigo-400/20' : ''} />
+               <span className="text-[9px] font-bold mt-1">Home</span>
+            </button>
+            <button onClick={() => setActiveTab('shopping')} className={`flex flex-col items-center justify-center w-14 transition-all ${activeTab === 'shopping' ? 'text-indigo-400 scale-110' : 'text-slate-500 hover:text-slate-300'}`}>
+               <ShoppingCart size={22} className={activeTab === 'shopping' ? 'fill-indigo-400/20' : ''} />
+               <span className="text-[9px] font-bold mt-1">Spesa</span>
+            </button>
+            <div className="relative -top-5">
+              <button 
+                onClick={() => {
+                   if (activeTab === 'home') handleOpenAddModal();
+                   else if (activeTab === 'shopping') handleOpenShoppingModal();
+                   else if (activeTab === 'alerts') handleOpenAlertModal();
+                   else setActiveTab('home'); // Default to home if in other tabs to prevent confusion
+                }} 
+                className="w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-600/40 hover:scale-105 active:scale-95 transition-all border-4 border-[#0E1629]"
+              >
+                <Plus size={28} />
+              </button>
+            </div>
+            <button onClick={() => setActiveTab('doit')} className={`flex flex-col items-center justify-center w-14 transition-all ${activeTab === 'doit' ? 'text-indigo-400 scale-110' : 'text-slate-500 hover:text-slate-300'}`}>
+               <ListTodo size={22} className={activeTab === 'doit' ? 'fill-indigo-400/20' : ''} />
+               <span className="text-[9px] font-bold mt-1">Do It</span>
+            </button>
+            <button onClick={() => setActiveTab('alerts')} className={`flex flex-col items-center justify-center w-14 transition-all ${activeTab === 'alerts' ? 'text-indigo-400 scale-110' : 'text-slate-500 hover:text-slate-300'}`}>
+               <Bell size={22} className={activeTab === 'alerts' ? 'fill-indigo-400/20' : ''} />
+               <span className="text-[9px] font-bold mt-1">Avvisi</span>
+            </button>
+            <button onClick={() => setActiveTab('reports')} className={`flex flex-col items-center justify-center w-14 transition-all ${activeTab === 'reports' ? 'text-indigo-400 scale-110' : 'text-slate-500 hover:text-slate-300'}`}>
+               <BarChart3 size={22} className={activeTab === 'reports' ? 'fill-indigo-400/20' : ''} />
+               <span className="text-[9px] font-bold mt-1">Report</span>
+            </button>
+         </div>
       </nav>
 
+      {/* Footer Branding */}
+      <footer className="pb-8 pt-4 text-center">
+         <div className="w-full h-px bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent shadow-[0_0_10px_rgba(99,102,241,0.5)] mb-4"></div>
+         <div className="flex flex-col items-center gap-2">
+            <h4 className="text-slate-500 font-bold tracking-widest text-xs uppercase">DevTools</h4>
+            <p className="text-[10px] text-slate-600 font-medium">BY CASTRO MASSIMO</p>
+            <p className="text-[10px] text-slate-600 max-w-[200px] leading-tight">
+               Questa App è realizzata da DevTools by Castro Massimo. Supporto e WebApp personalizzate.
+            </p>
+            <a href="mailto:castromassimo@gmail.com" className="mt-2 w-8 h-8 flex items-center justify-center rounded-full bg-slate-900 border border-slate-800 text-indigo-500 hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
+               <Mail size={14} />
+            </a>
+         </div>
+      </footer>
+
       {/* Modals */}
-      <AddModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveTransaction} initialData={editingTransaction} expenseCategories={expenseCategories} incomeCategories={incomeCategories} onAddCategory={handleAddCategory} />
-      <ShoppingModal isOpen={isShoppingModalOpen} onClose={() => setIsShoppingModalOpen(false)} onSave={handleSaveShoppingItem} initialData={editingShoppingItem} categories={shoppingCategories} onAddCategory={handleAddShoppingCategory} />
-      <AlertModal isOpen={isAlertModalOpen} onClose={() => setIsAlertModalOpen(false)} onSave={handleSaveAlert} initialData={editingAlert} />
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={userSettings} onUpdateSettings={setUserSettings} onReset={handleResetData} onShowToast={showToast} />
-      <TaskModal isOpen={isTaskModalOpen} onClose={() => setIsTaskModalOpen(false)} onSave={handleSaveTask} task={editingTask} />
+      <AddModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSave={handleSaveTransaction} 
+        initialData={editingTransaction}
+        expenseCategories={expenseCategories}
+        incomeCategories={incomeCategories}
+        onAddCategory={handleAddCategory}
+      />
+      <ShoppingModal 
+         isOpen={isShoppingModalOpen}
+         onClose={() => setIsShoppingModalOpen(false)}
+         onSave={handleSaveShoppingItem}
+         initialData={editingShoppingItem}
+         categories={shoppingCategories}
+         onAddCategory={handleAddShoppingCategory}
+      />
+      <TaskModal 
+        isOpen={isTaskModalOpen} 
+        onClose={() => setIsTaskModalOpen(false)} 
+        onSave={handleSaveTask} 
+        task={editingTask} 
+      />
+      <AlertModal 
+        isOpen={isAlertModalOpen} 
+        onClose={() => setIsAlertModalOpen(false)} 
+        onSave={handleSaveAlert} 
+        initialData={editingAlert} 
+      />
+      <SettingsModal 
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        settings={userSettings}
+        onUpdateSettings={setUserSettings}
+        onReset={handleResetData}
+        onShowToast={showToast}
+      />
     </div>
   );
 }
