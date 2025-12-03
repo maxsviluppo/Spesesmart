@@ -260,53 +260,60 @@ const MicButton: React.FC<MicButtonProps> = ({ onResult, className = "" }) => {
   };
 
   const startListening = () => {
+    // Check support
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert("Il tuo browser non supporta la dettatura vocale.");
+      alert("Il tuo browser non supporta la dettatura vocale. Prova con Chrome o Safari.");
       return;
     }
 
     if (navigator.vibrate) navigator.vibrate(50); // Haptic feedback on start
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    
-    recognition.lang = 'it-IT';
-    recognition.continuous = false; // Important: Stops automatically on silence
-    recognition.interimResults = false; // We only want final results
+    try {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      
+      recognition.lang = 'it-IT';
+      recognition.continuous = false; // Important: Stops automatically on silence
+      recognition.interimResults = false; // We only want final results
 
-    recognition.onstart = () => {
-      setIsListening(true);
-    };
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
 
-    recognition.onend = () => {
+      recognition.onend = () => {
+        setIsListening(false);
+        recognitionRef.current = null;
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech error", event.error);
+        setIsListening(false);
+        recognitionRef.current = null;
+        if (event.error === 'not-allowed') {
+          alert("Accesso al microfono negato. Controlla le impostazioni del browser.");
+        }
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          onResult(transcript);
+          if (navigator.vibrate) navigator.vibrate([30, 30]); // Double tap haptic on success
+        }
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (e) {
+      console.error(e);
+      alert("Errore nell'avvio del microfono.");
       setIsListening(false);
-      // Clean instance
-      recognitionRef.current = null;
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error("Speech error", event.error);
-      setIsListening(false);
-      recognitionRef.current = null;
-    };
-
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      if (transcript) {
-        onResult(transcript);
-        if (navigator.vibrate) navigator.vibrate([30, 30]); // Double tap haptic on success
-      }
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
+    }
   };
 
   const stopListening = () => {
     if (recognitionRef.current) {
-      recognitionRef.current.stop(); // Use stop() to try and get last result, or abort() to kill immediately
-      // If we want immediate kill without waiting for result:
-      // recognitionRef.current.abort();
+      recognitionRef.current.stop(); 
       if (navigator.vibrate) navigator.vibrate(50);
       setIsListening(false);
     }
@@ -323,7 +330,7 @@ const MicButton: React.FC<MicButtonProps> = ({ onResult, className = "" }) => {
       } ${className}`}
       title={isListening ? "Tocca per fermare" : "Tocca per parlare"}
     >
-      {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+      <Mic size={18} className={isListening ? "animate-pulse" : ""} />
     </button>
   );
 };
