@@ -783,8 +783,8 @@ const App = () => {
   const monthlyStats = useMemo(() => {
     const now = new Date();
     const current = transactions.filter(t => new Date(t.date).getMonth() === now.getMonth() && new Date(t.date).getFullYear() === now.getFullYear());
-    const inc: number = current.filter(t => t.type === 'income').reduce((acc, t) => acc + (Number(t.amount)||0), 0);
-    const exp: number = current.filter(t => t.type === 'expense').reduce((acc, t) => acc + (Number(t.amount)||0), 0);
+    const inc = current.filter(t => t.type === 'income').reduce((acc: number, t) => acc + (Number(t.amount)||0), 0);
+    const exp = current.filter(t => t.type === 'expense').reduce((acc: number, t) => acc + (Number(t.amount)||0), 0);
     return { totalIncome: inc, totalExpense: exp, balance: inc - exp };
   }, [transactions]);
 
