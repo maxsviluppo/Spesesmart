@@ -45,6 +45,7 @@ export interface ManualAlert {
   message: string;
   date: string; // ISO Date only
   time: string; // HH:mm
+  completed?: boolean;
 }
 
 export interface WeatherData {
@@ -265,12 +266,13 @@ interface SwipeableItemProps {
   rightIcon?: React.ReactNode;
   rightColor?: string;
   leftLabel?: string; // Default Delete
+  onDoubleClick?: () => void;
 }
 
 const SwipeableItem: React.FC<SwipeableItemProps> = ({ 
   children, onSwipeLeft, onSwipeRight, 
   rightLabel = "Azione", rightIcon = <Edit2 size={24}/>, rightColor = "bg-indigo-600",
-  leftLabel = "Elimina"
+  leftLabel = "Elimina", onDoubleClick
 }) => {
   const [startX, setStartX] = useState<number | null>(null);
   const [currentX, setCurrentX] = useState<number>(0);
@@ -322,7 +324,11 @@ const SwipeableItem: React.FC<SwipeableItemProps> = ({
   }
 
   return (
-    <div className="relative mb-2 w-full overflow-hidden rounded-xl select-none touch-pan-y" style={{ touchAction: 'pan-y' }}>
+    <div 
+        className="relative mb-2 w-full overflow-hidden rounded-xl select-none touch-pan-y" 
+        style={{ touchAction: 'pan-y' }}
+        onDoubleClick={onDoubleClick}
+    >
       <div className={`absolute inset-0 flex items-center justify-between px-6 transition-colors ${currentX > 0 ? rightColor : 'bg-red-600'}`}>
         {onSwipeRight && (
           <div className="flex items-center gap-2 text-white font-bold transition-opacity" style={{ opacity: currentX > 30 ? 1 : 0 }}>
@@ -352,7 +358,7 @@ const StatsCard = ({ label, amount, type }: { label: string, amount: number, typ
   return (
     <div className={`flex-1 p-3 rounded-2xl border shadow-sm flex flex-col items-center justify-center ${colors}`}>
       <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">{label}</span>
-      <span className="text-lg sm:text-xl font-bold truncate max-w-full">{amount.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</span>
+      <span className="text-lg sm:text-xl font-bold truncate max-w-full">{(Number(amount) || 0).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</span>
     </div>
   );
 };
@@ -423,8 +429,8 @@ const AddModal = ({ isOpen, onClose, onSave, initialData, expenseCategories, inc
           <div>
             <label className="text-xs font-semibold text-slate-500 uppercase mb-2 block">Categoria</label>
             <div className="flex flex-wrap gap-2">
-              {(type === 'expense' ? expenseCategories : incomeCategories).map(cat => (
-                <button key={cat} type="button" onClick={() => setCategory(cat)} className={`px-3 py-1 rounded-full text-xs border ${category === cat ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-900 text-slate-400 border-slate-700'}`}>{cat}</button>
+              {(type === 'expense' ? expenseCategories : incomeCategories).map((cat: string) => (
+                <button key={String(cat)} type="button" onClick={() => setCategory(cat)} className={`px-3 py-1 rounded-full text-xs border ${category === cat ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-900 text-slate-400 border-slate-700'}`}>{String(cat)}</button>
               ))}
               {isAddingCategory ? (
                 <div className="flex gap-1"><input value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} className="w-20 bg-slate-800 text-xs px-2 rounded text-white" /><button type="button" onClick={handleAddCat}><Check size={14} className="text-emerald-500"/></button></div>
@@ -518,13 +524,48 @@ const App = () => {
   const [activeTab, setActiveTab] = useState<'home' | 'shopping' | 'doit' | 'alerts' | 'reports'>('home');
   
   // State
-  const [transactions, setTransactions] = useState<Transaction[]>(() => JSON.parse(localStorage.getItem('transactions') || '[]'));
-  const [shoppingList, setShoppingList] = useState<ListItem[]>(() => JSON.parse(localStorage.getItem('shoppingList') || '[]'));
-  const [todoList, setTodoList] = useState<ListItem[]>(() => JSON.parse(localStorage.getItem('todoList') || '[]'));
-  const [manualAlerts, setManualAlerts] = useState<ManualAlert[]>(() => JSON.parse(localStorage.getItem('manualAlerts') || '[]'));
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    try {
+       const d = JSON.parse(localStorage.getItem('transactions') || '[]');
+       return Array.isArray(d) ? d : [];
+    } catch { return []; }
+  });
+
+  const [shoppingList, setShoppingList] = useState<ListItem[]>(() => {
+    try {
+        const d = JSON.parse(localStorage.getItem('shoppingList') || '[]');
+        return Array.isArray(d) ? d : [];
+    } catch { return []; }
+  });
+
+  const [todoList, setTodoList] = useState<ListItem[]>(() => {
+    try {
+        const d = JSON.parse(localStorage.getItem('todoList') || '[]');
+        return Array.isArray(d) ? d : [];
+    } catch { return []; }
+  });
+
+  const [manualAlerts, setManualAlerts] = useState<ManualAlert[]>(() => {
+    try {
+        const d = JSON.parse(localStorage.getItem('manualAlerts') || '[]');
+        return Array.isArray(d) ? d : [];
+    } catch { return []; }
+  });
   
-  const [expenseCategories, setExpenseCategories] = useState<string[]>(() => JSON.parse(localStorage.getItem('expenseCategories') || JSON.stringify(DEFAULT_EXPENSE_CATEGORIES)));
-  const [incomeCategories, setIncomeCategories] = useState<string[]>(() => JSON.parse(localStorage.getItem('incomeCategories') || JSON.stringify(DEFAULT_INCOME_CATEGORIES)));
+  // Safe load of categories
+  const [expenseCategories, setExpenseCategories] = useState<string[]>(() => {
+    try {
+        const d = JSON.parse(localStorage.getItem('expenseCategories') || JSON.stringify(DEFAULT_EXPENSE_CATEGORIES));
+        return (Array.isArray(d) && d.every(i => typeof i === 'string')) ? d : DEFAULT_EXPENSE_CATEGORIES;
+    } catch { return DEFAULT_EXPENSE_CATEGORIES; }
+  });
+
+  const [incomeCategories, setIncomeCategories] = useState<string[]>(() => {
+    try {
+        const d = JSON.parse(localStorage.getItem('incomeCategories') || JSON.stringify(DEFAULT_INCOME_CATEGORIES));
+        return (Array.isArray(d) && d.every(i => typeof i === 'string')) ? d : DEFAULT_INCOME_CATEGORIES;
+    } catch { return DEFAULT_INCOME_CATEGORIES; }
+  });
 
   // Config State
   const [userName, setUserName] = useState(() => localStorage.getItem('userName') || '');
@@ -542,6 +583,7 @@ const App = () => {
   const [newTodoItem, setNewTodoItem] = useState('');
   
   // Alerts Inputs
+  const [editingAlertId, setEditingAlertId] = useState<string | null>(null);
   const [newAlertMsg, setNewAlertMsg] = useState('');
   const [newAlertDate, setNewAlertDate] = useState('');
   const [newAlertTime, setNewAlertTime] = useState('');
@@ -569,8 +611,8 @@ const App = () => {
   const monthlyStats = useMemo(() => {
     const now = new Date();
     const current = transactions.filter(t => new Date(t.date).getMonth() === now.getMonth() && new Date(t.date).getFullYear() === now.getFullYear());
-    const inc = current.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-    const exp = current.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+    const inc = current.filter(t => t.type === 'income').reduce((acc, t) => acc + (Number(t.amount)||0), 0);
+    const exp = current.filter(t => t.type === 'expense').reduce((acc, t) => acc + (Number(t.amount)||0), 0);
     return { totalIncome: inc, totalExpense: exp, balance: inc - exp };
   }, [transactions]);
 
@@ -646,21 +688,41 @@ const App = () => {
     }
   };
 
-  const handleAddAlert = () => {
+  const handleSaveAlert = () => {
     if(!newAlertMsg.trim() || !newAlertDate || !newAlertTime) {
         alert("Inserisci messaggio, data e ora.");
         return;
     }
-    setManualAlerts([{ 
-        id: crypto.randomUUID(), 
-        message: newAlertMsg, 
-        date: newAlertDate, 
-        time: newAlertTime 
-    }, ...manualAlerts]);
+    
+    if (editingAlertId) {
+       setManualAlerts(p => p.map(a => a.id === editingAlertId ? { ...a, message: newAlertMsg, date: newAlertDate, time: newAlertTime } : a));
+       setEditingAlertId(null);
+    } else {
+       setManualAlerts([{ 
+          id: crypto.randomUUID(), 
+          message: newAlertMsg, 
+          date: newAlertDate, 
+          time: newAlertTime,
+          completed: false
+       }, ...manualAlerts]);
+    }
+
     setNewAlertMsg('');
     setNewAlertDate('');
     setNewAlertTime('');
-    setIsAddingAlert(false); // Close after add
+    setIsAddingAlert(false);
+  };
+
+  const startEditingAlert = (alert: ManualAlert) => {
+     setEditingAlertId(alert.id);
+     setNewAlertMsg(alert.message);
+     setNewAlertDate(alert.date);
+     setNewAlertTime(alert.time);
+     setIsAddingAlert(true);
+  };
+
+  const toggleAlertComplete = (id: string) => {
+     setManualAlerts(p => p.map(a => a.id === id ? { ...a, completed: !a.completed } : a));
   };
 
   // Renderers
@@ -674,7 +736,7 @@ const App = () => {
                <div className="flex items-center gap-2 text-indigo-200 font-bold"><Sparkles size={16}/><span>AI Advisor</span></div>
                <button onClick={async () => { setIsLoadingAi(true); setAiAdvice(await getFinancialAdvice(transactions, 'Mese Corrente', userApiKey)); setIsLoadingAi(false); }} disabled={isLoadingAi} className="text-[10px] bg-indigo-600 px-2 py-1 rounded text-white">{isLoadingAi ? '...' : 'Analizza'}</button>
              </div>
-             <p className="text-xs text-indigo-100/80 leading-relaxed whitespace-pre-line">{aiAdvice || "Tocca Analizza per consigli (Richiede API Key)."}</p>
+             <p className="text-xs text-indigo-100/80 leading-relaxed whitespace-pre-line">{String(aiAdvice || "Tocca Analizza per consigli (Richiede API Key).")}</p>
           </section>
           <div className="space-y-2">
             <h3 className="font-bold text-white mb-2">Recenti</h3>
@@ -683,9 +745,9 @@ const App = () => {
                 <div className="flex items-center justify-between p-4 h-[70px]">
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-full ${t.type === 'expense' ? 'bg-red-950/40 text-red-400' : 'bg-emerald-950/40 text-emerald-400'}`}>{t.type === 'expense' ? <ArrowDownCircle size={20}/> : <ArrowUpCircle size={20}/>}</div>
-                    <div><p className="font-medium text-slate-200 text-sm">{t.description}</p><p className="text-[10px] text-slate-500 capitalize">{t.category}</p></div>
+                    <div><p className="font-medium text-slate-200 text-sm">{String(t.description)}</p><p className="text-[10px] text-slate-500 capitalize">{String(t.category)}</p></div>
                   </div>
-                  <span className={`font-bold ${t.type === 'expense' ? 'text-red-400' : 'text-emerald-400'}`}>{t.type === 'expense' ? '-' : '+'}€{t.amount.toFixed(2)}</span>
+                  <span className={`font-bold ${t.type === 'expense' ? 'text-red-400' : 'text-emerald-400'}`}>{t.type === 'expense' ? '-' : '+'}€{(Number(t.amount)||0).toFixed(2)}</span>
                 </div>
               </SwipeableItem>
             ))}
@@ -714,7 +776,7 @@ const App = () => {
                    <button onClick={(e) => { e.stopPropagation(); toggleList('shopping', i.id); }} className="focus:outline-none">
                      {i.completed ? <CheckCircle2 className="text-emerald-500" size={24}/> : <Circle className="text-slate-500" size={24}/>}
                    </button>
-                   <span className={i.completed ? 'line-through text-slate-500' : 'text-white'}>{i.text}</span>
+                   <span className={i.completed ? 'line-through text-slate-500' : 'text-white'}>{String(i.text)}</span>
                 </div>
              </SwipeableItem>
           ))}
@@ -741,7 +803,7 @@ const App = () => {
                    <button onClick={(e) => { e.stopPropagation(); toggleList('todo', i.id); }} className="focus:outline-none">
                       {i.completed ? <CheckCircle2 className="text-indigo-500" size={24}/> : <Circle className="text-slate-500" size={24}/>}
                    </button>
-                   <span className={i.completed ? 'line-through text-slate-500' : 'text-white'}>{i.text}</span>
+                   <span className={i.completed ? 'line-through text-slate-500' : 'text-white'}>{String(i.text)}</span>
                 </div>
              </SwipeableItem>
           ))}
@@ -773,7 +835,7 @@ const App = () => {
            <div className="flex items-center justify-between mt-6 mb-2">
              <h3 className="font-bold text-white flex gap-2"><Bell className="text-yellow-400"/> Promemoria</h3>
              <button 
-               onClick={() => setIsAddingAlert(!isAddingAlert)} 
+               onClick={() => { setIsAddingAlert(!isAddingAlert); setEditingAlertId(null); setNewAlertMsg(''); setNewAlertDate(''); setNewAlertTime(''); }} 
                className={`p-2 rounded-full transition-colors ${isAddingAlert ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
              >
                {isAddingAlert ? <ChevronUp size={20}/> : <Plus size={20}/>}
@@ -788,19 +850,19 @@ const App = () => {
                     <VoiceInput onResult={setNewAlertMsg} />
                  </div>
                  
-                 <div className="grid grid-cols-2 gap-3">
-                    <div className="relative">
+                 <div className="flex gap-3">
+                    <div className="relative w-1/2">
                         <input type="date" value={newAlertDate} onChange={e => setNewAlertDate(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-xs text-white rounded-lg px-3 py-3 outline-none focus:border-indigo-500 uppercase tracking-wide"/>
-                        <Calendar className="absolute right-3 top-3 text-indigo-500 pointer-events-none" size={14}/>
+                        {/* <Calendar className="absolute right-3 top-3 text-indigo-500 pointer-events-none" size={14}/> */}
                     </div>
-                    <div className="relative">
+                    <div className="relative w-1/2">
                         <input type="time" value={newAlertTime} onChange={e => setNewAlertTime(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-xs text-white rounded-lg px-3 py-3 outline-none focus:border-indigo-500 uppercase tracking-wide"/>
-                        <Clock className="absolute right-3 top-3 text-indigo-500 pointer-events-none" size={14}/>
+                        {/* <Clock className="absolute right-3 top-3 text-indigo-500 pointer-events-none" size={14}/> */}
                     </div>
                  </div>
 
-                 <button onClick={handleAddAlert} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-indigo-500 flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20">
-                    <Save size={18}/> Salva Promemoria
+                 <button onClick={handleSaveAlert} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-indigo-500 flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20">
+                    <Save size={18}/> {editingAlertId ? 'Aggiorna Promemoria' : 'Salva Promemoria'}
                  </button>
              </div>
            )}
@@ -808,9 +870,19 @@ const App = () => {
            {/* LIST OF MANUAL ALERTS */}
            <div className="space-y-2">
              {manualAlerts.map(a => (
-               <SwipeableItem key={a.id} onSwipeLeft={() => setManualAlerts(p => p.filter(x => x.id !== a.id))}>
-                 <div className="bg-slate-900/40 p-4 rounded-xl border-l-4 border-slate-600 flex flex-col gap-1 min-h-[70px]">
-                    <span className="text-white text-sm font-medium leading-relaxed">{a.message}</span>
+               <SwipeableItem 
+                   key={a.id} 
+                   onSwipeLeft={() => setManualAlerts(p => p.filter(x => x.id !== a.id))}
+                   onSwipeRight={() => startEditingAlert(a)}
+                   rightLabel="Modifica"
+                   rightIcon={<Edit2 size={24}/>}
+                   onDoubleClick={() => toggleAlertComplete(a.id)}
+               >
+                 <div className={`bg-slate-900/40 p-4 rounded-xl border-l-4 flex flex-col gap-1 min-h-[70px] transition-colors ${a.completed ? 'border-emerald-500 bg-emerald-950/20' : 'border-slate-600'}`}>
+                    <div className="flex justify-between items-start">
+                        <span className={`text-sm font-medium leading-relaxed ${a.completed ? 'text-emerald-300 line-through' : 'text-white'}`}>{String(a.message)}</span>
+                        {a.completed && <span className="text-[9px] font-bold bg-emerald-900/50 text-emerald-400 px-2 py-0.5 rounded uppercase">Completato</span>}
+                    </div>
                     <div className="flex gap-3 text-[10px] text-indigo-300 font-mono mt-1">
                        <span className="flex items-center gap-1"><Calendar size={10}/> {new Date(a.date).toLocaleDateString()}</span>
                        <span className="flex items-center gap-1"><Clock size={10}/> {a.time}</span>
@@ -828,10 +900,10 @@ const App = () => {
         <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
           <h3 className="font-bold text-white mb-4">Report Mensile</h3>
           <div className="space-y-3">
-             <div className="flex justify-between"><span className="text-slate-400">Entrate</span><span className="text-emerald-400 font-bold">€{monthlyStats.totalIncome}</span></div>
-             <div className="flex justify-between"><span className="text-slate-400">Uscite</span><span className="text-red-400 font-bold">€{monthlyStats.totalExpense}</span></div>
+             <div className="flex justify-between"><span className="text-slate-400">Entrate</span><span className="text-emerald-400 font-bold">€{monthlyStats.totalIncome.toLocaleString()}</span></div>
+             <div className="flex justify-between"><span className="text-slate-400">Uscite</span><span className="text-red-400 font-bold">€{monthlyStats.totalExpense.toLocaleString()}</span></div>
              <div className="h-px bg-slate-800"></div>
-             <div className="flex justify-between"><span className="text-white">Saldo</span><span className={monthlyStats.balance >= 0 ? "text-indigo-400 font-bold" : "text-red-400 font-bold"}>€{monthlyStats.balance}</span></div>
+             <div className="flex justify-between"><span className="text-white">Saldo</span><span className={monthlyStats.balance >= 0 ? "text-indigo-400 font-bold" : "text-red-400 font-bold"}>€{monthlyStats.balance.toLocaleString()}</span></div>
           </div>
         </div>
       );
