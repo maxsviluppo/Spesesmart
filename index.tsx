@@ -50,7 +50,9 @@ import {
   EyeOff,
   Loader2,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Layout,
+  Smartphone
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -73,6 +75,7 @@ import { GoogleGenAI } from "@google/genai";
 // --- TYPES ---
 export type TransactionType = 'expense' | 'income';
 export type PriorityLevel = 'high' | 'medium' | 'low';
+export type AppTab = 'home' | 'reports' | 'doit' | 'shopping' | 'alerts';
 
 export interface Transaction {
   id: string;
@@ -112,6 +115,7 @@ export interface UserSettings {
   soundEnabled: boolean;
   hapticEnabled: boolean;
   apiKey?: string; 
+  defaultTab: AppTab;
 }
 
 export const DEFAULT_EXPENSE_CATEGORIES = [
@@ -587,6 +591,7 @@ interface SettingsModalProps {
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onUpdateSettings, onReset, onShowToast }) => {
   const [localName, setLocalName] = useState(settings.userName);
   const [localApiKey, setLocalApiKey] = useState(settings.apiKey || '');
+  const [localDefaultTab, setLocalDefaultTab] = useState<AppTab>(settings.defaultTab || 'home');
   const [showApiKey, setShowApiKey] = useState(false);
   const [resetStep, setResetStep] = useState(0);
   
@@ -598,6 +603,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
     if (isOpen) {
       setLocalName(settings.userName);
       setLocalApiKey(settings.apiKey || '');
+      setLocalDefaultTab(settings.defaultTab || 'home');
       setResetStep(0);
       setVerificationStatus('idle');
     }
@@ -609,7 +615,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
     onUpdateSettings({ 
       ...settings, 
       userName: localName,
-      apiKey: localApiKey.trim() 
+      apiKey: localApiKey.trim(),
+      defaultTab: localDefaultTab
     });
     onShowToast('Preferenze salvate con successo!', 'success');
     onClose();
@@ -753,6 +760,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
           <div className="space-y-3">
              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Preferenze</label>
              
+             {/* Startup Section Selector */}
+             <div className="space-y-2">
+                <div className="flex items-center gap-2 text-slate-400 text-xs mb-1">
+                  <Layout size={12} /> Sezione Iniziale
+                </div>
+                <select 
+                  value={localDefaultTab}
+                  onChange={(e) => setLocalDefaultTab(e.target.value as AppTab)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-200 outline-none focus:border-indigo-500 transition-all appearance-none"
+                >
+                  <option value="home">Home (Portafoglio)</option>
+                  <option value="shopping">Lista Spesa</option>
+                  <option value="doit">Do It (Task)</option>
+                  <option value="alerts">Avvisi</option>
+                  <option value="reports">Report</option>
+                </select>
+             </div>
+
              <div className="flex items-center justify-between bg-slate-950 p-3 rounded-lg border border-slate-800">
                <div className="flex items-center gap-3">
                  {settings.soundEnabled ? <Volume2 size={20} className="text-indigo-400" /> : <VolumeX size={20} className="text-slate-600" />}
@@ -1192,7 +1217,8 @@ function App() {
   // State Settings
   const [userSettings, setUserSettings] = useState<UserSettings>(() => {
     const saved = localStorage.getItem('spesesmart_settings');
-    return saved ? JSON.parse(saved) : { userName: '', soundEnabled: true, hapticEnabled: true, apiKey: '' };
+    const defaultSettings: UserSettings = { userName: '', soundEnabled: true, hapticEnabled: true, apiKey: '', defaultTab: 'home' };
+    return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -1246,7 +1272,10 @@ function App() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'reports' | 'doit' | 'shopping' | 'alerts'>('home');
+  
+  // Set initial active tab from settings
+  const [activeTab, setActiveTab] = useState<AppTab>(userSettings.defaultTab || 'home');
+  
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedCategory, setSelectedCategory] = useState<string>('Tutte');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -1358,16 +1387,16 @@ function App() {
     // Wipe everything
     localStorage.clear();
 
-    if (keepApiKey && currentApiKey) {
-      // Restore settings with preserved API key
-      const preservedSettings: UserSettings = {
-        userName: '',
-        soundEnabled: true,
-        hapticEnabled: true,
-        apiKey: currentApiKey
-      };
-      localStorage.setItem('spesesmart_settings', JSON.stringify(preservedSettings));
-    }
+    // Default settings with preserved API key if requested
+    const preservedSettings: UserSettings = {
+      userName: '',
+      soundEnabled: true,
+      hapticEnabled: true,
+      apiKey: keepApiKey ? currentApiKey : '',
+      defaultTab: 'home'
+    };
+    
+    localStorage.setItem('spesesmart_settings', JSON.stringify(preservedSettings));
 
     // Reload page to reset state
     window.location.reload();
