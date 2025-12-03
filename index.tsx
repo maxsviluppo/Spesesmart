@@ -136,53 +136,23 @@ interface TransactionItemProps {
   transaction: Transaction;
   onDelete: (id: string) => void;
   onEdit: (transaction: Transaction) => void;
-  onUpdateNote: (id: string, note: string) => void;
   isFirst?: boolean;
 }
 
-const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete, onEdit, onUpdateNote, isFirst = false }) => {
+const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete, onEdit, isFirst = false }) => {
   const isExpense = transaction.type === 'expense';
   const hasNote = !!transaction.note && transaction.note.trim().length > 0;
   
-  // Swipe & Expand Logic State
+  // Swipe Logic State
   const [startX, setStartX] = useState<number | null>(null);
   const [currentX, setCurrentX] = useState<number>(0);
   const [isDragging, setIsDragging] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
   
   // Undo State
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  // Double Tap Logic
-  const lastTapTimeRef = useRef<number>(0);
-
-  // Note editing state
-  const [localNote, setLocalNote] = useState(transaction.note || '');
-  const itemRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Sync local note state if props change (e.g. from modal edit)
-  useEffect(() => {
-    setLocalNote(transaction.note || '');
-  }, [transaction.note]);
-
-  // Auto-focus when expanded
-  useEffect(() => {
-    if (isExpanded && textareaRef.current) {
-        // Small delay to ensure render is complete
-        setTimeout(() => {
-            if (textareaRef.current) {
-                textareaRef.current.focus();
-                // Move cursor to end of text
-                const length = textareaRef.current.value.length;
-                textareaRef.current.setSelectionRange(length, length);
-            }
-        }, 50);
-    }
-  }, [isExpanded]);
-
   // Cleanup timer on unmount
   useEffect(() => {
     return () => {
@@ -194,15 +164,13 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
   const SWIPE_THRESHOLD = 70; 
   const DELETE_THRESHOLD = 150;
   const MAX_SWIPE_RIGHT = 100;
-  const TAP_THRESHOLD = 5; // Pixels to distinguish tap from drag
-  const DOUBLE_TAP_DELAY = 300; // ms
 
   // Auto-swipe hint animation
   useEffect(() => {
     if (!isFirst || isDeleting || isConfirmingDelete) return;
 
     const interval = setInterval(() => {
-      if (isDragging || isDeleting || isExpanded || isConfirmingDelete) return; 
+      if (isDragging || isDeleting || isConfirmingDelete) return; 
 
       // Hint sequence
       setCurrentX(-40);
@@ -218,7 +186,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [isFirst, isDragging, isDeleting, isExpanded, isConfirmingDelete]);
+  }, [isFirst, isDragging, isDeleting, isConfirmingDelete]);
 
   // Touch Handlers
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -275,21 +243,9 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
 
   // Logic to execute action or reset
   const handleSwipeEnd = () => {
-    // Determine if it was a tap or a swipe
-    const wasTap = Math.abs(currentX) < TAP_THRESHOLD;
-
     setIsDragging(false);
     
-    if (wasTap) {
-      // Double Tap Logic
-      const now = Date.now();
-      if (now - lastTapTimeRef.current < DOUBLE_TAP_DELAY) {
-          // Double Tap Detected!
-          toggleExpand();
-      }
-      lastTapTimeRef.current = now;
-      setCurrentX(0);
-    } else if (currentX > SWIPE_THRESHOLD) {
+    if (currentX > SWIPE_THRESHOLD) {
       // Swipe Right -> Edit
       onEdit(transaction);
       setCurrentX(0); 
@@ -301,14 +257,6 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
       setCurrentX(0);
     }
     setStartX(null);
-  };
-
-  const toggleExpand = () => {
-      if (isExpanded) {
-          // Closing: Save Note
-          handleSaveNote();
-      }
-      setIsExpanded(!isExpanded);
   };
 
   const handleStartDeleteSequence = () => {
@@ -336,12 +284,6 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
       setIsConfirmingDelete(false);
       // Reset state
       setCurrentX(0);
-  };
-
-  const handleSaveNote = () => {
-    if (localNote !== transaction.note) {
-      onUpdateNote(transaction.id, localNote);
-    }
   };
 
   // Helper to determine background color
@@ -387,7 +329,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
   // --- NORMAL VIEW ---
   return (
     <div 
-      className={`relative mb-3 w-full overflow-hidden rounded-xl select-none touch-pan-y transition-all duration-300 ${isExpanded ? 'h-auto' : 'h-[88px]'}`}
+      className={`relative mb-3 w-full h-[88px] overflow-hidden rounded-xl select-none touch-pan-y transition-all duration-300`}
       onMouseLeave={handleMouseLeave}
       onMouseUp={handleMouseUp}
       style={{ touchAction: 'pan-y' }}
@@ -406,7 +348,6 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
 
       {/* Foreground Layer (Content) */}
       <div 
-        ref={itemRef}
         className={`relative h-full bg-slate-900 flex flex-col justify-center border border-slate-800 rounded-xl transition-transform ease-out overflow-hidden`}
         style={{ 
           transform: `translateX(${currentX}px)`,
@@ -419,7 +360,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
         onMouseMove={handleMouseDown}
       >
         {/* Main Content Row */}
-        <div className="flex items-center justify-between p-4 h-[88px]">
+        <div className="flex items-center justify-between p-4 h-full">
           <div className="flex items-center gap-3 pointer-events-none">
             <div className={`p-2 rounded-full ${isExpense ? 'bg-red-950/30 text-red-400' : 'bg-emerald-950/30 text-emerald-400'}`}>
               {isExpense ? <ArrowDownCircle size={24} /> : <ArrowUpCircle size={24} />}
@@ -436,45 +377,12 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
             <span className={`font-bold ${isExpense ? 'text-red-400' : 'text-emerald-400'}`}>
               {isExpense ? '-' : '+'}€{transaction.amount.toFixed(2)}
             </span>
-            {/* Note Indicator */}
-            {(hasNote || isExpanded) && (
-               <div className={`flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider transition-colors ${hasNote ? 'text-indigo-400' : 'text-slate-600'}`}>
-                 <FileText size={12} />
-                 {isExpanded ? (
-                    hasNote ? <span>Modifica</span> : <span>Scrivi</span>
-                 ) : (
-                    <span>Info</span>
-                 )}
+            {/* Note Indicator (Static Icon only) */}
+            {hasNote && (
+               <div className="text-indigo-400">
+                 <FileText size={14} />
                </div>
             )}
-          </div>
-        </div>
-
-        {/* Expanded Note Section (Editable) */}
-        <div 
-          className={`px-4 transition-all duration-300 ease-in-out ${isExpanded ? 'opacity-100 max-h-60 pb-4' : 'opacity-0 max-h-0 pb-0'}`}
-          onClick={(e) => e.stopPropagation()} // Prevent accidental close
-        >
-          <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex flex-col gap-2 shadow-inner group-focus-within:border-indigo-500/50 transition-colors">
-             <textarea
-               ref={textareaRef}
-               value={localNote}
-               onChange={(e) => setLocalNote(e.target.value)}
-               onBlur={handleSaveNote} // Auto-save on blur
-               // Stop propagation to prevent swiping while typing
-               onTouchStart={(e) => e.stopPropagation()}
-               onMouseDown={(e) => e.stopPropagation()}
-               placeholder="Scrivi una nota..."
-               className="w-full bg-transparent text-sm text-slate-200 leading-relaxed p-1 outline-none resize-none min-h-[80px] placeholder-slate-500 caret-indigo-500"
-             />
-             <div className="flex justify-between items-center pt-2 border-t border-slate-800/50">
-                 <span className="text-[10px] text-slate-500 font-medium">
-                    {localNote.length > 0 ? `${localNote.length} car.` : ''}
-                 </span>
-                 <span className="text-[10px] text-slate-600 font-medium uppercase tracking-wider">
-                   Doppio Tap per chiudere
-                 </span>
-             </div>
           </div>
         </div>
       </div>
@@ -893,11 +801,7 @@ function App() {
     }
   };
 
-  const handleUpdateNote = (id: string, note: string) => {
-    setTransactions(prev => prev.map(t => 
-      t.id === id ? { ...t, note } : t
-    ));
-  };
+  // REMOVED handleUpdateNote
 
   const handleAddCategory = (newCategory: string, type: TransactionType) => {
     if (type === 'expense') {
@@ -1127,7 +1031,7 @@ function App() {
                <div className="space-y-0">
                  <div className="flex items-center gap-2 mb-2 px-2">
                     <Info size={12} className="text-slate-600" />
-                    <span className="text-[10px] text-slate-600 uppercase tracking-wider">Scorri: SX Elimina • DX Modifica • Doppio Tap Note</span>
+                    <span className="text-[10px] text-slate-600 uppercase tracking-wider">Scorri: SX Elimina • DX Modifica</span>
                  </div>
                  {displayedTransactions.map((t, index) => (
                    <TransactionItem 
@@ -1135,7 +1039,6 @@ function App() {
                      transaction={t} 
                      onDelete={handleDelete}
                      onEdit={handleEdit}
-                     onUpdateNote={handleUpdateNote}
                      isFirst={index === 0 && selectedCategory === 'Tutte'}
                    />
                  ))}
