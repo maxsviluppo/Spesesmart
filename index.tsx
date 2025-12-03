@@ -826,37 +826,154 @@ const AlertModal: React.FC<AlertModalProps> = ({ isOpen, onClose, onSave, initia
   );
 };
 
-// --- RESTORED COMPONENTS FOR COMPLETENESS (TaskItem, ShoppingListItem, StatsCard, ShoppingModal, AddModal) ---
+// --- COMPONENT: TaskModal ---
+interface TaskModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (text: string, id: string) => void;
+  task: Task | null;
+}
 
-const TaskItem: React.FC<{task: Task, onToggle: (id: string) => void, onDelete: (id: string) => void, hapticEnabled: boolean}> = ({ task, onToggle, onDelete, hapticEnabled }) => {
+const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, task }) => {
+  const [text, setText] = useState('');
+
+  useEffect(() => {
+    if (isOpen && task) {
+      setText(task.text);
+    }
+  }, [isOpen, task]);
+
+  if (!isOpen || !task) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!text.trim()) return;
+    onSave(text.trim(), task.id);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-800 overflow-hidden animate-slide-up">
+        <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+          <h2 className="text-lg font-bold text-slate-100">Modifica Attività</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X size={24} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Attività</label>
+            <input 
+              type="text" 
+              value={text} 
+              onChange={(e) => setText(e.target.value)} 
+              className="w-full text-xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 bg-transparent" 
+              autoFocus 
+              required 
+            />
+          </div>
+          <button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-500 transition-all flex justify-center gap-2">
+            <Save size={20} /> Aggiorna
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// --- COMPONENT: TaskItem ---
+const TaskItem: React.FC<{task: Task, onToggle: (id: string) => void, onDelete: (id: string) => void, onEdit: (task: Task) => void, hapticEnabled: boolean}> = ({ task, onToggle, onDelete, onEdit, hapticEnabled }) => {
   const [startX, setStartX] = useState<number | null>(null);
   const [currentX, setCurrentX] = useState<number>(0);
   const [isDragging, setIsDragging] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const DELETE_THRESHOLD = 150;
+  const SWIPE_THRESHOLD = 70; const DELETE_THRESHOLD = 150; const MAX_SWIPE_RIGHT = 100;
 
   useEffect(() => { return () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current); }; }, []);
 
   const handleTouchStart = (e: React.TouchEvent) => { if (isConfirmingDelete) return; setStartX(e.touches[0].clientX); setIsDragging(true); };
-  const handleTouchMove = (e: React.TouchEvent) => { if (startX === null || isDeleting || isConfirmingDelete) return; const diff = e.touches[0].clientX - startX; if (diff < 0) setCurrentX(diff); else setCurrentX(diff * 0.2); };
+  
+  const handleTouchMove = (e: React.TouchEvent) => { 
+    if (startX === null || isDeleting || isConfirmingDelete) return; 
+    const x = e.touches[0].clientX; 
+    const diff = x - startX; 
+    
+    if (diff > MAX_SWIPE_RIGHT) {
+        setCurrentX(MAX_SWIPE_RIGHT + (diff - MAX_SWIPE_RIGHT) * 0.2); 
+    } else {
+        setCurrentX(diff);
+    }
+  };
+  
   const handleTouchEnd = () => handleSwipeEnd();
+  
   const handleMouseDown = (e: React.MouseEvent) => { if (isConfirmingDelete) return; setStartX(e.clientX); setIsDragging(true); };
-  const handleMouseMove = (e: React.MouseEvent) => { if (!isDragging || startX === null || isDeleting || isConfirmingDelete) return; e.preventDefault(); const diff = e.clientX - startX; if (diff < 0) setCurrentX(diff); else setCurrentX(diff * 0.2); };
+  
+  const handleMouseMove = (e: React.MouseEvent) => { 
+    if (!isDragging || startX === null || isDeleting || isConfirmingDelete) return; 
+    e.preventDefault(); 
+    const x = e.clientX; 
+    const diff = x - startX; 
+    
+    if (diff > MAX_SWIPE_RIGHT) {
+         setCurrentX(MAX_SWIPE_RIGHT + (diff - MAX_SWIPE_RIGHT) * 0.2);
+    } else {
+         setCurrentX(diff);
+    }
+  };
+  
   const handleMouseUp = () => handleSwipeEnd();
   const handleMouseLeave = () => { if (isDragging) handleSwipeEnd(); };
-  const handleSwipeEnd = () => { setIsDragging(false); if (currentX < -DELETE_THRESHOLD) { handleStartDeleteSequence(); } else { setCurrentX(0); } setStartX(null); };
-  const handleStartDeleteSequence = () => { if (hapticEnabled && navigator.vibrate) navigator.vibrate(50); setIsConfirmingDelete(true); setCurrentX(0); deleteTimerRef.current = setTimeout(() => { setIsDeleting(true); setTimeout(() => onDelete(task.id), 300); }, 3000); };
+  
+  const handleSwipeEnd = () => { 
+    setIsDragging(false); 
+    if (currentX > SWIPE_THRESHOLD) {
+      onEdit(task);
+      setCurrentX(0); 
+    } else if (currentX < -DELETE_THRESHOLD) { 
+      handleStartDeleteSequence(); 
+    } else { 
+      setCurrentX(0); 
+    } 
+    setStartX(null); 
+  };
+  
+  const handleStartDeleteSequence = () => { 
+    if (hapticEnabled && navigator.vibrate) navigator.vibrate(50); 
+    setIsConfirmingDelete(true); 
+    setCurrentX(0); 
+    deleteTimerRef.current = setTimeout(() => { setIsDeleting(true); setTimeout(() => onDelete(task.id), 300); }, 3000); 
+  };
+  
   const handleUndo = () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current); setIsConfirmingDelete(false); setCurrentX(0); };
+  
+  const getSwipeBackground = () => { 
+    if (currentX > 0) return 'bg-indigo-600'; 
+    if (currentX < 0) return 'bg-red-600'; 
+    return 'bg-slate-900'; 
+  };
 
   if (isDeleting) return <div className="h-[88px] mb-3 w-full bg-transparent transition-all duration-300 opacity-0 transform -translate-x-full"></div>;
   if (isConfirmingDelete) return ( <div className="relative mb-3 h-[88px] w-full bg-red-950/40 border border-red-900/50 rounded-xl flex items-center justify-between px-6 animate-fade-in overflow-hidden"> <div className="absolute bottom-0 left-0 h-1 bg-red-600/50 w-full animate-[shrink_3s_linear_forwards]" style={{ animationName: 'shrinkWidth' }}></div> <style>{`@keyframes shrinkWidth { from { width: 100%; } to { width: 0%; } }`}</style> <div className="flex items-center gap-2 text-red-400"> <Trash2 size={20} /> <span className="font-medium text-sm">Eliminato</span> </div> <button onClick={handleUndo} className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm border border-slate-700 transition-colors z-10"> <RotateCcw size={16} /> Annulla </button> </div> );
 
   return (
-    <div className="relative mb-3 w-full h-[88px] overflow-hidden rounded-xl select-none touch-pan-y" onMouseLeave={handleMouseLeave} onMouseUp={handleMouseUp} style={{ touchAction: 'pan-y' }} onClick={() => { if (!isDragging && !isDeleting && !isConfirmingDelete) onToggle(task.id); }}>
-      <div className={`absolute inset-0 flex items-center justify-end px-6 transition-colors ${currentX < 0 ? 'bg-red-600' : 'bg-slate-900'}`}><div className="flex items-center gap-2 text-white font-bold transition-opacity duration-200" style={{ opacity: currentX < -30 ? 1 : 0 }}><span>Elimina</span> <Trash2 size={24} /></div></div>
-      <div className={`relative h-full bg-slate-900 flex items-center gap-4 p-4 border border-slate-800 rounded-xl transition-all duration-300 ${task.completed ? 'opacity-60 bg-slate-950/50 border-slate-900' : ''}`} style={{ transform: `translateX(${currentX}px)`, transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)' }} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}>
+    <div className="relative mb-3 w-full h-[88px] overflow-hidden rounded-xl select-none touch-pan-y" onMouseLeave={handleMouseLeave} onMouseUp={handleMouseUp} style={{ touchAction: 'pan-y' }}>
+      <div className={`absolute inset-0 flex items-center justify-between px-6 transition-colors ${getSwipeBackground()}`}>
+        <div className="flex items-center gap-2 text-white font-bold transition-opacity duration-200" style={{ opacity: currentX > 30 ? 1 : 0 }}>
+          <Edit2 size={24} /> <span>Modifica</span>
+        </div>
+        <div className="flex items-center gap-2 text-white font-bold transition-opacity duration-200" style={{ opacity: currentX < -30 ? 1 : 0 }}>
+          <span>Elimina</span> <Trash2 size={24} />
+        </div>
+      </div>
+      
+      <div 
+        className={`relative h-full bg-slate-900 flex items-center gap-4 p-4 border border-slate-800 rounded-xl transition-all duration-300 ${task.completed ? 'opacity-60 bg-slate-950/50 border-slate-900' : ''}`} 
+        style={{ transform: `translateX(${currentX}px)`, transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)' }} 
+        onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}
+        onClick={() => { if (!isDragging && !isDeleting && !isConfirmingDelete) onToggle(task.id); }}
+      >
         <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors pointer-events-none ${task.completed ? 'bg-indigo-600 border-indigo-600' : 'border-slate-500'}`}>{task.completed && <Check size={14} className="text-white" strokeWidth={3} />}</div>
         <span className={`flex-1 font-medium pointer-events-none transition-all ${task.completed ? 'text-slate-600 line-through' : 'text-slate-200'}`}>{task.text}</span>
       </div>
@@ -956,6 +1073,8 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
   const [newTaskText, setNewTaskText] = useState('');
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   // State Shopping List
   const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>(() => {
@@ -1188,6 +1307,16 @@ function App() {
   };
   const handleToggleTask = (id: string) => setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
   const handleDeleteTask = (id: string) => setTasks(prev => prev.filter(t => t.id !== id));
+  
+  const handleEditTask = (task: Task) => {
+    setEditingTask(task);
+    setIsTaskModalOpen(true);
+  };
+  
+  const handleSaveTask = (text: string, id: string) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, text } : t));
+  };
+
   const handleSaveShoppingItem = (name: string, category: string, id?: string) => {
     if (id) { setShoppingItems(prev => prev.map(i => i.id === id ? { ...i, name, category } : i)); }
     else { setShoppingItems(prev => [{ id: crypto.randomUUID(), name, category, completed: false }, ...prev]); }
@@ -1282,8 +1411,8 @@ function App() {
              </div>
              <form onSubmit={handleAddTask} className="relative group"><input type="text" value={newTaskText} onChange={(e) => setNewTaskText(e.target.value)} placeholder="Aggiungi una nuova attività..." className="w-full bg-slate-900 border border-slate-800 text-slate-200 pl-4 pr-12 py-4 rounded-2xl outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all placeholder-slate-600" /><button type="submit" disabled={!newTaskText.trim()} className="absolute right-2 top-2 bottom-2 aspect-square bg-indigo-600 text-white rounded-xl flex items-center justify-center disabled:opacity-50 disabled:bg-slate-800 transition-all"><Plus size={20} /></button></form>
              <div className="space-y-3">
-               <div className="flex items-center gap-2 mb-2 px-2"><Info size={12} className="text-slate-600" /><span className="text-[10px] text-slate-600 uppercase tracking-wider">Scorri verso SX per Eliminare</span></div>
-               {tasks.length > 0 ? ( tasks.sort((a,b) => (a.completed === b.completed ? 0 : a.completed ? 1 : -1)).map(task => ( <TaskItem key={task.id} task={task} onToggle={handleToggleTask} onDelete={handleDeleteTask} hapticEnabled={userSettings.hapticEnabled} /> )) ) : ( <div className="text-center py-20 opacity-50 flex flex-col items-center"><div className="bg-slate-900 border border-slate-800 w-20 h-20 rounded-full flex items-center justify-center mb-4"><ListTodo size={32} className="text-slate-600" /></div><p className="text-slate-400">Nessuna attività in lista.</p></div> )}
+               <div className="flex items-center gap-2 mb-2 px-2"><Info size={12} className="text-slate-600" /><span className="text-[10px] text-slate-600 uppercase tracking-wider">Tocca per spuntare • Scorri: SX Elimina / DX Modifica</span></div>
+               {tasks.length > 0 ? ( tasks.sort((a,b) => (a.completed === b.completed ? 0 : a.completed ? 1 : -1)).map(task => ( <TaskItem key={task.id} task={task} onToggle={handleToggleTask} onDelete={handleDeleteTask} onEdit={handleEditTask} hapticEnabled={userSettings.hapticEnabled} /> )) ) : ( <div className="text-center py-20 opacity-50 flex flex-col items-center"><div className="bg-slate-900 border border-slate-800 w-20 h-20 rounded-full flex items-center justify-center mb-4"><ListTodo size={32} className="text-slate-600" /></div><p className="text-slate-400">Nessuna attività in lista.</p></div> )}
              </div>
           </div>
         )}
@@ -1466,6 +1595,7 @@ function App() {
       <ShoppingModal isOpen={isShoppingModalOpen} onClose={() => setIsShoppingModalOpen(false)} onSave={handleSaveShoppingItem} initialData={editingShoppingItem} categories={shoppingCategories} onAddCategory={handleAddShoppingCategory} />
       <AlertModal isOpen={isAlertModalOpen} onClose={() => setIsAlertModalOpen(false)} onSave={handleSaveAlert} initialData={editingAlert} />
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={userSettings} onUpdateSettings={setUserSettings} onReset={handleResetData} />
+      <TaskModal isOpen={isTaskModalOpen} onClose={() => setIsTaskModalOpen(false)} onSave={handleSaveTask} task={editingTask} />
 
       {/* Nav */}
       <nav className="fixed bottom-0 left-0 right-0 bg-[#0E1629] border-t border-slate-800 pb-safe pt-2 px-4 h-20 sm:max-w-lg sm:mx-auto z-20">
