@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { 
   Plus, Home, ShoppingCart, ListTodo, Bell, BarChart3, 
   Wallet, PieChart, ArrowRight, Sparkles, CheckCircle2, Circle, Trash2, AlertTriangle, Info,
-  ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut, Calendar, Clock, User, Key, Lock, ExternalLink, ChevronDown, ChevronUp
+  ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut, Calendar, Clock, User, Key, Lock, ExternalLink, ChevronDown, ChevronUp, Mail
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
@@ -387,9 +386,15 @@ const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, ap
           <div className="space-y-3">
              <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Info size={14}/> Info App</h3>
              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs text-slate-400 leading-relaxed">
-                <p><strong>SpeseSmart v1.2</strong></p>
-                <p>Gestore finanziario locale e sicuro.</p>
-                <p className="mt-2">Sviluppato con ❤️ per aiutarti a risparmiare.</p>
+                <p className="font-bold text-slate-200 mb-2">DevTools by Castro Massimo</p>
+                <p className="mb-4">Questa App è realizzata da DevTools by Castro Massimo.<br/>Se hai bisogno di supporto, segnalazioni o di WebApp personalizzate contattaci.</p>
+                
+                <a 
+                  href="mailto:castromassimo@gmail.com" 
+                  className="flex items-center justify-center gap-2 w-full py-3 bg-slate-800 hover:bg-emerald-900/20 text-emerald-500 border border-slate-700 hover:border-emerald-500/50 rounded-xl transition-all font-bold"
+                >
+                    <Mail size={18} /> Scrivimi via Email
+                </a>
              </div>
           </div>
 
