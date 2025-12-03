@@ -21,7 +21,10 @@ import {
   Save,
   ListTodo,
   CheckSquare,
-  Square
+  Square,
+  FileText,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -40,6 +43,7 @@ export interface Transaction {
   amount: number;
   description: string;
   category: string;
+  note?: string; // Added note field
   date: string; // ISO string
   type: TransactionType;
 }
@@ -94,7 +98,7 @@ export const getFinancialAdvice = async (transactions: Transaction[], month: str
 
   // Prepare a summary string for the AI
   const summary = transactions.map(t => 
-    `- ${t.date.split('T')[0]}: ${t.type === 'expense' ? 'Spesa' : 'Entrata'} di €${t.amount} per ${t.description} (${t.category})`
+    `- ${t.date.split('T')[0]}: ${t.type === 'expense' ? 'Spesa' : 'Entrata'} di €${t.amount} per ${t.description} (${t.category}). Note: ${t.note || 'nessuna'}`
   ).join('\n');
 
   const prompt = `
@@ -135,25 +139,28 @@ interface TransactionItemProps {
 
 const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete, onEdit, isFirst = false }) => {
   const isExpense = transaction.type === 'expense';
+  const hasNote = !!transaction.note && transaction.note.trim().length > 0;
   
-  // Swipe Logic State
+  // Swipe & Expand Logic State
   const [startX, setStartX] = useState<number | null>(null);
   const [currentX, setCurrentX] = useState<number>(0);
   const [isDragging, setIsDragging] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false); // New state to handle exit animation
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false); // State for expanding note
   const itemRef = useRef<HTMLDivElement>(null);
 
   // Constants for swipe
   const SWIPE_THRESHOLD = 70; 
-  const DELETE_THRESHOLD = 150; // Threshold to trigger full delete
-  const MAX_SWIPE_RIGHT = 100; // Limit for edit (right swipe) only
+  const DELETE_THRESHOLD = 150;
+  const MAX_SWIPE_RIGHT = 100;
+  const TAP_THRESHOLD = 5; // Pixels to distinguish tap from drag
 
   // Auto-swipe hint animation
   useEffect(() => {
     if (!isFirst || isDeleting) return;
 
     const interval = setInterval(() => {
-      if (isDragging || isDeleting) return; 
+      if (isDragging || isDeleting || isExpanded) return; 
 
       // Hint sequence
       setCurrentX(-40);
@@ -169,7 +176,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [isFirst, isDragging, isDeleting]);
+  }, [isFirst, isDragging, isDeleting, isExpanded]);
 
   // Touch Handlers
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -190,7 +197,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
     }
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (e: React.TouchEvent) => {
     handleSwipeEnd();
   };
 
@@ -214,7 +221,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
     }
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e: React.MouseEvent) => {
     handleSwipeEnd();
   };
 
@@ -224,9 +231,18 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
 
   // Logic to execute action or reset
   const handleSwipeEnd = () => {
+    // Determine if it was a tap or a swipe
+    const wasTap = Math.abs(currentX) < TAP_THRESHOLD;
+
     setIsDragging(false);
     
-    if (currentX > SWIPE_THRESHOLD) {
+    if (wasTap) {
+      // It's a tap, toggle expansion
+      if (hasNote) {
+        setIsExpanded(!isExpanded);
+      }
+      setCurrentX(0);
+    } else if (currentX > SWIPE_THRESHOLD) {
       // Swipe Right -> Edit
       onEdit(transaction);
       setCurrentX(0); 
@@ -255,14 +271,12 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
   };
 
   if (isDeleting && Math.abs(currentX) >= window.innerWidth) {
-      // Return null or placeholder while waiting for parent to delete data
-      // This prevents visual glitching before the list re-renders
       return <div className="h-[88px] mb-3 w-full"></div>;
   }
 
   return (
     <div 
-      className="relative mb-3 h-[88px] w-full overflow-hidden rounded-xl select-none touch-pan-y"
+      className={`relative mb-3 w-full overflow-hidden rounded-xl select-none touch-pan-y transition-all duration-300 ${isExpanded ? 'h-auto' : 'h-[88px]'}`}
       onMouseLeave={handleMouseLeave}
       onMouseUp={handleMouseUp}
       style={{ touchAction: 'pan-y' }}
@@ -282,7 +296,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
       {/* Foreground Layer (Content) */}
       <div 
         ref={itemRef}
-        className="relative h-full bg-slate-900 flex items-center justify-between p-4 border border-slate-800 rounded-xl transition-transform ease-out"
+        className={`relative h-full bg-slate-900 flex flex-col justify-center border border-slate-800 rounded-xl transition-transform ease-out overflow-hidden`}
         style={{ 
           transform: `translateX(${currentX}px)`,
           transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)' 
@@ -293,21 +307,46 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseDown}
       >
-        <div className="flex items-center gap-3 pointer-events-none">
-          <div className={`p-2 rounded-full ${isExpense ? 'bg-red-950/30 text-red-400' : 'bg-emerald-950/30 text-emerald-400'}`}>
-            {isExpense ? <ArrowDownCircle size={24} /> : <ArrowUpCircle size={24} />}
+        {/* Main Content Row */}
+        <div className="flex items-center justify-between p-4 h-[88px]">
+          <div className="flex items-center gap-3 pointer-events-none">
+            <div className={`p-2 rounded-full ${isExpense ? 'bg-red-950/30 text-red-400' : 'bg-emerald-950/30 text-emerald-400'}`}>
+              {isExpense ? <ArrowDownCircle size={24} /> : <ArrowUpCircle size={24} />}
+            </div>
+            <div>
+              <p className="font-medium text-slate-200">{transaction.description}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-slate-500 capitalize">{transaction.category} • {new Date(transaction.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}</p>
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="font-medium text-slate-200">{transaction.description}</p>
-            <p className="text-xs text-slate-500 capitalize">{transaction.category} • {new Date(transaction.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}</p>
+          
+          <div className="flex flex-col items-end gap-1 pointer-events-none">
+            <span className={`font-bold ${isExpense ? 'text-red-400' : 'text-emerald-400'}`}>
+              {isExpense ? '-' : '+'}€{transaction.amount.toFixed(2)}
+            </span>
+            {hasNote && (
+               <div className={`flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider transition-colors ${isExpanded ? 'text-indigo-400' : 'text-indigo-400/60'}`}>
+                 <FileText size={12} />
+                 {isExpanded ? <span>Nascondi</span> : <span>Info</span>}
+               </div>
+            )}
           </div>
         </div>
-        
-        <div className="flex flex-col items-end gap-1 pointer-events-none">
-          <span className={`font-bold ${isExpense ? 'text-red-400' : 'text-emerald-400'}`}>
-            {isExpense ? '-' : '+'}€{transaction.amount.toFixed(2)}
-          </span>
-        </div>
+
+        {/* Expanded Note Section */}
+        {hasNote && (
+          <div 
+            className={`px-4 pb-4 transition-all duration-300 ease-in-out ${isExpanded ? 'opacity-100 max-h-40' : 'opacity-0 max-h-0'}`}
+          >
+            <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800/50">
+              <div className="flex items-start gap-2">
+                 <FileText size={14} className="text-slate-500 mt-0.5 shrink-0" />
+                 <p className="text-sm text-slate-300 leading-relaxed italic">{transaction.note}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -317,7 +356,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
 interface AddModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (amount: number, description: string, category: string, type: TransactionType, id?: string) => void;
+  onSave: (amount: number, description: string, category: string, type: TransactionType, note: string, id?: string) => void;
   initialData?: Transaction | null;
   expenseCategories: string[];
   incomeCategories: string[];
@@ -337,6 +376,7 @@ const AddModal: React.FC<AddModalProps> = ({
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
+  const [note, setNote] = useState(''); // State for Note
   
   // New Category Logic
   const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -357,16 +397,18 @@ const AddModal: React.FC<AddModalProps> = ({
         setAmount(initialData.amount.toString());
         setDescription(initialData.description);
         setCategory(initialData.category);
+        setNote(initialData.note || '');
       } else {
         // Reset for new entry
         setType('expense');
         setAmount('');
         setDescription('');
+        setNote('');
         // Default category is the first one available
         setCategory(expenseCategories[0] || '');
       }
     }
-  }, [isOpen, initialData, expenseCategories]); // Added expenseCategories to dependency to ensure reset works on load
+  }, [isOpen, initialData, expenseCategories]); 
 
   // Focus input when adding category
   useEffect(() => {
@@ -384,9 +426,10 @@ const AddModal: React.FC<AddModalProps> = ({
     onSave(
       parseFloat(amount), 
       description, 
-      category || currentCategories[0], // Fallback if somehow empty
+      category || currentCategories[0], 
       type,
-      initialData?.id // Pass ID if editing
+      note,
+      initialData?.id 
     );
     
     onClose();
@@ -395,7 +438,7 @@ const AddModal: React.FC<AddModalProps> = ({
   const handleCreateCategory = () => {
     if (newCategoryName.trim()) {
       onAddCategory(newCategoryName.trim(), type);
-      setCategory(newCategoryName.trim()); // Select the new category
+      setCategory(newCategoryName.trim()); 
       setNewCategoryName('');
       setIsAddingCategory(false);
     } else {
@@ -478,6 +521,19 @@ const AddModal: React.FC<AddModalProps> = ({
               placeholder="Es. Spesa settimanale"
               className="w-full p-3 bg-slate-950 border border-slate-800 text-slate-200 rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder-slate-600"
               required
+            />
+          </div>
+
+          {/* Note (New Field) */}
+          <div>
+             <label className="block text-xs font-semibold text-slate-500 uppercase mb-1 flex items-center gap-1">
+               Note <span className="text-slate-600 font-normal lowercase">(opzionale)</span>
+             </label>
+             <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Aggiungi dettagli extra qui..."
+              className="w-full p-3 bg-slate-950 border border-slate-800 text-slate-200 rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder-slate-600 min-h-[80px] resize-none"
             />
           </div>
 
@@ -684,12 +740,12 @@ function App() {
   }, [monthlyTransactions]);
 
   // Handlers
-  const handleSaveTransaction = (amount: number, description: string, category: string, type: TransactionType, id?: string) => {
+  const handleSaveTransaction = (amount: number, description: string, category: string, type: TransactionType, note: string, id?: string) => {
     if (id) {
       // Update existing
       setTransactions(prev => prev.map(t => 
         t.id === id 
-          ? { ...t, amount, description, category, type }
+          ? { ...t, amount, description, category, type, note }
           : t
       ));
     } else {
@@ -700,6 +756,7 @@ function App() {
         description,
         category,
         type,
+        note,
         date: new Date().toISOString()
       };
       setTransactions(prev => [newTransaction, ...prev]);
@@ -934,7 +991,7 @@ function App() {
                <div className="space-y-0">
                  <div className="flex items-center gap-2 mb-2 px-2">
                     <Info size={12} className="text-slate-600" />
-                    <span className="text-[10px] text-slate-600 uppercase tracking-wider">Scorri: SX per Eliminare • DX per Modificare</span>
+                    <span className="text-[10px] text-slate-600 uppercase tracking-wider">Scorri: SX Elimina • DX Modifica • TAP Dettagli</span>
                  </div>
                  {displayedTransactions.map((t, index) => (
                    <TransactionItem 
