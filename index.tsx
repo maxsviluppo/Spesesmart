@@ -401,6 +401,7 @@ const App = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editingListItemId, setEditingListItemId] = useState<string | null>(null); // For editing list items
   
   // Inputs
   const [newShoppingItem, setNewShoppingItem] = useState('');
@@ -471,9 +472,29 @@ const App = () => {
 
   const handleAddList = (type: 'shopping'|'todo', text: string) => {
     if (!text.trim()) return;
-    const item = { id: crypto.randomUUID(), text: text.trim(), completed: false };
-    if (type === 'shopping') { setShoppingList([item, ...shoppingList]); setNewShoppingItem(''); }
-    else { setTodoList([item, ...todoList]); setNewTodoItem(''); }
+    
+    // Check if updating existing
+    if (editingListItemId) {
+        if (type === 'shopping') {
+            setShoppingList(p => p.map(i => i.id === editingListItemId ? { ...i, text: text.trim() } : i));
+            setNewShoppingItem('');
+        } else {
+            setTodoList(p => p.map(i => i.id === editingListItemId ? { ...i, text: text.trim() } : i));
+            setNewTodoItem('');
+        }
+        setEditingListItemId(null);
+    } else {
+        // Creating new
+        const item = { id: crypto.randomUUID(), text: text.trim(), completed: false };
+        if (type === 'shopping') { setShoppingList([item, ...shoppingList]); setNewShoppingItem(''); }
+        else { setTodoList([item, ...todoList]); setNewTodoItem(''); }
+    }
+  };
+
+  const startEditingList = (type: 'shopping'|'todo', item: ListItem) => {
+    setEditingListItemId(item.id);
+    if (type === 'shopping') setNewShoppingItem(item.text);
+    else setNewTodoItem(item.text);
   };
 
   const toggleList = (type: 'shopping'|'todo', id: string) => {
@@ -484,6 +505,11 @@ const App = () => {
   const deleteList = (type: 'shopping'|'todo', id: string) => {
     if (type === 'shopping') setShoppingList(p => p.filter(i => i.id !== id));
     else setTodoList(p => p.filter(i => i.id !== id));
+    if (editingListItemId === id) {
+        setEditingListItemId(null);
+        if (type === 'shopping') setNewShoppingItem('');
+        else setNewTodoItem('');
+    }
   };
 
   const handleAddAlert = () => {
@@ -517,7 +543,7 @@ const App = () => {
           <div className="space-y-2">
             <h3 className="font-bold text-white mb-2">Recenti</h3>
             {transactions.slice(0, 10).map(t => (
-              <SwipeableItem key={t.id} onSwipeLeft={() => setTransactions(p => p.filter(x => x.id !== t.id))} onSwipeRight={() => { setEditingTransaction(t); setIsAddModalOpen(true); }}>
+              <SwipeableItem key={t.id} onSwipeLeft={() => setTransactions(p => p.filter(x => x.id !== t.id))} onSwipeRight={() => { setEditingTransaction(t); setIsAddModalOpen(true); }} rightLabel="Modifica" rightIcon={<Edit2 size={24}/>}>
                 <div className="flex items-center justify-between p-4 h-[70px]">
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-full ${t.type === 'expense' ? 'bg-red-950/40 text-red-400' : 'bg-emerald-950/40 text-emerald-400'}`}>{t.type === 'expense' ? <ArrowDownCircle size={20}/> : <ArrowUpCircle size={20}/>}</div>
@@ -535,14 +561,23 @@ const App = () => {
         <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
           <h3 className="font-bold text-white mb-4 flex items-center gap-2"><ShoppingCart size={20} className="text-emerald-400"/> Lista Spesa</h3>
           <div className="flex gap-2 mb-4">
-            <input value={newShoppingItem} onChange={e => setNewShoppingItem(e.target.value)} placeholder="Prodotto..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none" onKeyDown={e => e.key === 'Enter' && handleAddList('shopping', newShoppingItem)}/>
+            <input value={newShoppingItem} onChange={e => setNewShoppingItem(e.target.value)} placeholder={editingListItemId ? "Modifica..." : "Prodotto..."} className={`flex-1 bg-slate-950 border ${editingListItemId ? 'border-indigo-500' : 'border-slate-700'} rounded-lg px-3 py-2 text-white outline-none`} onKeyDown={e => e.key === 'Enter' && handleAddList('shopping', newShoppingItem)}/>
             <VoiceInput onResult={setNewShoppingItem} />
-            <button onClick={() => handleAddList('shopping', newShoppingItem)} className="bg-indigo-600 text-white p-2 rounded-lg"><Plus/></button>
+            <button onClick={() => handleAddList('shopping', newShoppingItem)} className={`text-white p-2 rounded-lg ${editingListItemId ? 'bg-emerald-600' : 'bg-indigo-600'}`}>{editingListItemId ? <Check size={20}/> : <Plus size={20}/>}</button>
           </div>
           {shoppingList.map(i => (
-             <SwipeableItem key={i.id} onSwipeLeft={() => deleteList('shopping', i.id)} onSwipeRight={() => toggleList('shopping', i.id)} rightLabel={i.completed ? "Apri" : "Fatto"} rightIcon={<CheckCircle2/>} rightColor="bg-emerald-600">
+             <SwipeableItem 
+                key={i.id} 
+                onSwipeLeft={() => deleteList('shopping', i.id)} 
+                onSwipeRight={() => startEditingList('shopping', i)} 
+                rightLabel="Modifica" 
+                rightIcon={<Edit2 size={24}/>} 
+                rightColor="bg-indigo-600"
+             >
                 <div className="flex items-center gap-3 p-4 h-[60px]">
-                   {i.completed ? <CheckCircle2 className="text-emerald-500" size={20}/> : <Circle className="text-slate-500" size={20}/>}
+                   <button onClick={(e) => { e.stopPropagation(); toggleList('shopping', i.id); }} className="focus:outline-none">
+                     {i.completed ? <CheckCircle2 className="text-emerald-500" size={24}/> : <Circle className="text-slate-500" size={24}/>}
+                   </button>
                    <span className={i.completed ? 'line-through text-slate-500' : 'text-white'}>{i.text}</span>
                 </div>
              </SwipeableItem>
@@ -553,14 +588,23 @@ const App = () => {
         <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
           <h3 className="font-bold text-white mb-4 flex items-center gap-2"><ListTodo size={20} className="text-indigo-400"/> Cose da fare</h3>
           <div className="flex gap-2 mb-4">
-            <input value={newTodoItem} onChange={e => setNewTodoItem(e.target.value)} placeholder="Attività..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none" onKeyDown={e => e.key === 'Enter' && handleAddList('todo', newTodoItem)}/>
+            <input value={newTodoItem} onChange={e => setNewTodoItem(e.target.value)} placeholder={editingListItemId ? "Modifica..." : "Attività..."} className={`flex-1 bg-slate-950 border ${editingListItemId ? 'border-indigo-500' : 'border-slate-700'} rounded-lg px-3 py-2 text-white outline-none`} onKeyDown={e => e.key === 'Enter' && handleAddList('todo', newTodoItem)}/>
             <VoiceInput onResult={setNewTodoItem} />
-            <button onClick={() => handleAddList('todo', newTodoItem)} className="bg-indigo-600 text-white p-2 rounded-lg"><Plus/></button>
+            <button onClick={() => handleAddList('todo', newTodoItem)} className={`text-white p-2 rounded-lg ${editingListItemId ? 'bg-emerald-600' : 'bg-indigo-600'}`}>{editingListItemId ? <Check size={20}/> : <Plus size={20}/>}</button>
           </div>
           {todoList.map(i => (
-             <SwipeableItem key={i.id} onSwipeLeft={() => deleteList('todo', i.id)} onSwipeRight={() => toggleList('todo', i.id)} rightLabel={i.completed ? "Apri" : "Fatto"} rightIcon={<CheckCircle2/>} rightColor="bg-indigo-600">
+             <SwipeableItem 
+                key={i.id} 
+                onSwipeLeft={() => deleteList('todo', i.id)} 
+                onSwipeRight={() => startEditingList('todo', i)} 
+                rightLabel="Modifica" 
+                rightIcon={<Edit2 size={24}/>} 
+                rightColor="bg-indigo-600"
+             >
                 <div className="flex items-center gap-3 p-4 h-[60px]">
-                   {i.completed ? <CheckCircle2 className="text-indigo-500" size={20}/> : <Circle className="text-slate-500" size={20}/>}
+                   <button onClick={(e) => { e.stopPropagation(); toggleList('todo', i.id); }} className="focus:outline-none">
+                      {i.completed ? <CheckCircle2 className="text-indigo-500" size={24}/> : <Circle className="text-slate-500" size={24}/>}
+                   </button>
                    <span className={i.completed ? 'line-through text-slate-500' : 'text-white'}>{i.text}</span>
                 </div>
              </SwipeableItem>
