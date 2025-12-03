@@ -903,12 +903,12 @@ const App = () => {
                     <VoiceInput onResult={setNewAlertMsg} />
                  </div>
                  
-                 <div className="flex gap-4">
-                    <div className="flex-1">
+                 <div className="flex flex-col gap-3 w-full items-center">
+                    <div className="w-full">
                         <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Data</label>
                         <input type="date" value={newAlertDate} onChange={e => setNewAlertDate(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-sm text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500"/>
                     </div>
-                    <div className="flex-1">
+                    <div className="w-full">
                         <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Ora</label>
                         <input type="time" value={newAlertTime} onChange={e => setNewAlertTime(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-sm text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500"/>
                     </div>
@@ -922,6 +922,7 @@ const App = () => {
 
            {/* LIST OF MANUAL ALERTS */}
            <div className="space-y-2">
+             <p className="text-[10px] text-slate-500 text-center mb-2 italic">(Doppio clic per segnare come completato)</p>
              {manualAlerts.map(a => (
                <SwipeableItem 
                    key={a.id} 
