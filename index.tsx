@@ -39,7 +39,15 @@ import {
   Cell, 
   ResponsiveContainer, 
   Sector,
-  Tooltip
+  Tooltip,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend
 } from 'recharts';
 import { GoogleGenAI } from "@google/genai";
 
@@ -184,21 +192,6 @@ export const getFinancialAdvice = async (transactions: Transaction[], month: str
     return "Si è verificato un errore durante l'analisi dei dati. Riprova più tardi.";
   }
 };
-
-// --- COMPONENT: SwipeableItemWrapper ---
-// Abstracting Swipe Logic for reuse
-interface SwipeableProps {
-  children: (currentX: number) => React.ReactNode;
-  onEdit: () => void;
-  onDelete: () => void;
-  onUndo: () => void;
-  isDeleting: boolean;
-  isConfirmingDelete: boolean;
-  heightClass?: string;
-}
-
-// ... We are keeping individual implementations for now to maintain the specific rendering logic of each item type
-// but utilizing shared patterns.
 
 // --- COMPONENT: TransactionItem ---
 interface TransactionItemProps {
@@ -749,6 +742,21 @@ function App() {
     return Object.entries(data).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
   }, [monthlyTransactions]);
 
+  const dailyStats = useMemo(() => {
+    const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+    const data = Array.from({length: daysInMonth}, (_, i) => ({ day: i + 1, expense: 0 }));
+    monthlyTransactions.filter(t => t.type === 'expense').forEach(t => {
+      const d = new Date(t.date).getDate();
+      if (data[d-1]) data[d-1].expense += t.amount;
+    });
+    return data;
+  }, [monthlyTransactions, currentDate]);
+
+  const monthlyComparison = useMemo(() => [
+    { name: 'Entrate', amount: stats.totalIncome, fill: '#34d399' },
+    { name: 'Uscite', amount: stats.totalExpense, fill: '#f87171' },
+  ], [stats]);
+
   // Handlers
   const handleSaveTransaction = (amount: number, description: string, category: string, type: TransactionType, note: string, id?: string) => {
     if (id) {
@@ -908,11 +916,109 @@ function App() {
         )}
 
         {activeTab === 'reports' && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-800"><h3 className="font-bold text-slate-100 mb-6 flex items-center gap-2"><PieChart size={18} className="text-indigo-400" />Spese per Categoria</h3>
-              {categoryData.length > 0 ? ( <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><RePieChart><Pie data={categoryData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none" onMouseEnter={onPieEnter} isAnimationActive={true} animationBegin={0} animationDuration={800} animationEasing="ease-out" {...{ activeIndex, activeShape: renderActiveShape } as any}>{categoryData.map((entry, index) => ( <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} /> ))}</Pie></RePieChart></ResponsiveContainer><div className="mt-4 grid grid-cols-2 gap-2">{categoryData.map((entry, index) => ( <div key={entry.name} className={`flex items-center gap-2 text-xs p-1 rounded transition-colors ${activeIndex === index ? 'bg-slate-800/50' : ''}`} onMouseEnter={() => setActiveIndex(index)}><div className="w-2 h-2 rounded-full shadow-sm shadow-black/50" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div><span className={`truncate flex-1 ${activeIndex === index ? 'text-white font-medium' : 'text-slate-400'}`}>{entry.name}</span><span className="font-bold text-slate-200">€{entry.value.toFixed(0)}</span></div> ))}</div></div> ) : ( <p className="text-center text-slate-600 py-10">Nessuna spesa da analizzare.</p> )}
+          <div className="space-y-8 animate-fade-in">
+            {/* AI Advisor Section */}
+            <div className="bg-gradient-to-br from-indigo-900 to-purple-900 p-6 rounded-2xl text-white shadow-xl shadow-indigo-900/10 border border-indigo-800/30 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-20"><Sparkles size={100} /></div>
+              <h3 className="font-bold text-lg mb-2 flex items-center gap-2 text-indigo-100"><Sparkles size={20} className="text-yellow-300" />AI Advisor</h3>
+              {!aiAdvice ? ( 
+                <div className="relative z-10">
+                  <p className="text-indigo-200/80 text-sm mb-4">Ottieni un'analisi intelligente delle tue abitudini di spesa per questo mese.</p>
+                  <button onClick={handleAiAnalysis} disabled={loadingAi} className="bg-white/10 hover:bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-semibold transition-all w-full border border-white/10 flex items-center justify-center gap-2 text-white">{loadingAi ? 'Analisi in corso...' : 'Genera Report AI'}</button>
+                </div> 
+              ) : ( 
+                <div className="relative z-10 animate-fade-in">
+                  <div className="text-sm leading-relaxed text-indigo-100 prose prose-invert prose-sm max-w-none"><div dangerouslySetInnerHTML={{ __html: aiAdvice.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>') }} /></div>
+                  <button onClick={() => setAiAdvice(null)} className="mt-4 text-xs text-indigo-300 hover:text-white underline">Chiudi analisi</button>
+                </div> 
+              )}
             </div>
-            <div className="bg-gradient-to-br from-indigo-900 to-purple-900 p-6 rounded-2xl text-white shadow-xl shadow-indigo-900/10 border border-indigo-800/30 relative overflow-hidden"><div className="absolute top-0 right-0 p-4 opacity-20"><Sparkles size={100} /></div><h3 className="font-bold text-lg mb-2 flex items-center gap-2 text-indigo-100"><Sparkles size={20} className="text-yellow-300" />AI Advisor</h3>{!aiAdvice ? ( <div className="relative z-10"><p className="text-indigo-200/80 text-sm mb-4">Ottieni un'analisi intelligente delle tue abitudini di spesa per questo mese.</p><button onClick={handleAiAnalysis} disabled={loadingAi} className="bg-white/10 hover:bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-semibold transition-all w-full border border-white/10 flex items-center justify-center gap-2 text-white">{loadingAi ? 'Analisi in corso...' : 'Genera Report AI'}</button></div> ) : ( <div className="relative z-10 animate-fade-in"><div className="text-sm leading-relaxed text-indigo-100 prose prose-invert prose-sm max-w-none"><div dangerouslySetInnerHTML={{ __html: aiAdvice.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>') }} /></div><button onClick={() => setAiAdvice(null)} className="mt-4 text-xs text-indigo-300 hover:text-white underline">Chiudi analisi</button></div> )}</div>
+
+            {/* Cash Flow Section */}
+            <div className="bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-800">
+               <h3 className="font-bold text-slate-100 mb-4 flex items-center gap-2">
+                 <ArrowUpCircle size={18} className="text-emerald-400" />
+                 Cash Flow
+               </h3>
+               <div className="h-64 w-full">
+                 <ResponsiveContainer width="100%" height="100%">
+                   <BarChart data={monthlyComparison} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
+                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                     <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                     <Tooltip cursor={{ fill: '#1e293b' }} contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px' }} itemStyle={{ color: '#f8fafc' }} />
+                     <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
+                       {monthlyComparison.map((entry, index) => (
+                         <Cell key={`cell-${index}`} fill={entry.fill} />
+                       ))}
+                     </Bar>
+                   </BarChart>
+                 </ResponsiveContainer>
+               </div>
+            </div>
+
+            {/* Monthly Trend Section */}
+             <div className="bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-800">
+               <h3 className="font-bold text-slate-100 mb-4 flex items-center gap-2">
+                 <TrendingUp size={18} className="text-indigo-400" />
+                 Trend Spese Mensile
+               </h3>
+               <div className="h-64 w-full">
+                 <ResponsiveContainer width="100%" height="100%">
+                   <LineChart data={dailyStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
+                     <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} interval={2} />
+                     <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                     <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px' }} itemStyle={{ color: '#f8fafc' }} />
+                     <Line type="monotone" dataKey="expense" stroke="#818cf8" strokeWidth={3} dot={{ fill: '#818cf8', strokeWidth: 2 }} activeDot={{ r: 6, fill: '#fff' }} />
+                   </LineChart>
+                 </ResponsiveContainer>
+               </div>
+            </div>
+
+            {/* Category Breakdown Section */}
+            <div className="bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-800">
+              <h3 className="font-bold text-slate-100 mb-6 flex items-center gap-2"><PieChart size={18} className="text-purple-400" />Distribuzione Spese</h3>
+              {categoryData.length > 0 ? ( 
+                <>
+                  <div className="h-64 w-full mb-8">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RePieChart>
+                        <Pie data={categoryData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none" onMouseEnter={onPieEnter} isAnimationActive={true} animationBegin={0} animationDuration={800} animationEasing="ease-out" {...{ activeIndex, activeShape: renderActiveShape } as any}>
+                          {categoryData.map((entry, index) => ( <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} /> ))}
+                        </Pie>
+                      </RePieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  
+                  {/* Detailed List */}
+                  <div className="space-y-4">
+                    {categoryData.map((entry, index) => {
+                      const percentage = (entry.value / stats.totalExpense) * 100;
+                      return (
+                        <div key={entry.name} className="flex flex-col gap-1">
+                          <div className="flex justify-between items-center text-sm">
+                             <div className="flex items-center gap-2">
+                               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                               <span className="text-slate-300 font-medium">{entry.name}</span>
+                             </div>
+                             <div className="flex items-center gap-2">
+                               <span className="text-slate-400 text-xs">{percentage.toFixed(1)}%</span>
+                               <span className="text-slate-100 font-bold">€{entry.value.toFixed(2)}</span>
+                             </div>
+                          </div>
+                          <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${percentage}%`, backgroundColor: COLORS[index % COLORS.length] }}></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : ( 
+                <p className="text-center text-slate-600 py-10">Nessuna spesa da analizzare.</p> 
+              )}
+            </div>
           </div>
         )}
 
