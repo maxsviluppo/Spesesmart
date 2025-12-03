@@ -158,6 +158,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
   // Note editing state
   const [localNote, setLocalNote] = useState(transaction.note || '');
   const itemRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Sync local note state if props change (e.g. from modal edit)
   useEffect(() => {
@@ -420,21 +421,44 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
         {/* Expanded Note Section (Editable) */}
         <div 
           className={`px-4 transition-all duration-300 ease-in-out ${isExpanded ? 'opacity-100 max-h-60 pb-4' : 'opacity-0 max-h-0 pb-0'}`}
+          onClick={(e) => e.stopPropagation()} // Prevent accidental close
         >
-          <div className="bg-slate-950/50 p-1 rounded-lg border border-slate-800/50">
+          <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex flex-col gap-2 shadow-inner group-focus-within:border-indigo-500/50 transition-colors">
              <textarea
+               ref={textareaRef}
                value={localNote}
                onChange={(e) => setLocalNote(e.target.value)}
-               onBlur={handleSaveNote}
                // Stop propagation to prevent swiping while typing
                onTouchStart={(e) => e.stopPropagation()}
                onMouseDown={(e) => e.stopPropagation()}
-               placeholder="Aggiungi una nota qui..."
-               className="w-full bg-transparent text-sm text-slate-300 leading-relaxed italic p-2 outline-none resize-none h-24 placeholder-slate-600 focus:text-slate-100"
+               placeholder="Tocca qui per scrivere una nota..."
+               className="w-full bg-transparent text-sm text-slate-200 leading-relaxed p-1 outline-none resize-none min-h-[80px] placeholder-slate-500 caret-indigo-500"
              />
-          </div>
-          <div className="flex justify-end mt-1">
-             <span className="text-[10px] text-slate-600">Clicca fuori per salvare</span>
+             <div className="flex justify-between items-center pt-2 border-t border-slate-800/50">
+                 <span className="text-[10px] text-slate-500 font-medium">
+                    {localNote.length > 0 ? `${localNote.length} car.` : ''}
+                 </span>
+                 <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSaveNote();
+                    setIsExpanded(false);
+                  }}
+                  className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold px-4 py-1.5 rounded-lg flex items-center gap-1.5 shadow-lg shadow-indigo-900/20 transition-all"
+                >
+                  {localNote !== transaction.note ? (
+                    <>
+                      <Save size={14} strokeWidth={2.5} />
+                      Salva
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} strokeWidth={2.5} />
+                      Chiudi
+                    </>
+                  )}
+                </button>
+             </div>
           </div>
         </div>
       </div>
