@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { 
   Plus, Home, ShoppingCart, ListTodo, Bell, BarChart3, 
   Wallet, PieChart, ArrowRight, Sparkles, CheckCircle2, Circle, Trash2, AlertTriangle, Info,
-  ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut, Calendar, Clock, User, Key, Lock, ExternalLink
+  ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut, Calendar, Clock, User, Key, Lock, ExternalLink, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
@@ -429,6 +429,7 @@ const App = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editingListItemId, setEditingListItemId] = useState<string | null>(null); // For editing list items
+  const [isAddingAlert, setIsAddingAlert] = useState(false);
   
   // Inputs
   const [newShoppingItem, setNewShoppingItem] = useState('');
@@ -553,6 +554,7 @@ const App = () => {
     setNewAlertMsg('');
     setNewAlertDate('');
     setNewAlertTime('');
+    setIsAddingAlert(false); // Close after add
   };
 
   // Renderers
@@ -639,51 +641,79 @@ const App = () => {
         </div>
       );
       case 'alerts': return (
-        <div className="space-y-6">
-           <div>
-             <h3 className="font-bold text-white mb-2 flex gap-2"><Bell className="text-yellow-400"/> Avvisi Sistema</h3>
-             {monthlyStats.balance < 0 && <div className="p-3 bg-red-900/20 text-red-200 border border-red-900/50 rounded-lg text-sm mb-2">Saldo negativo!</div>}
-             {shoppingList.length > 5 && <div className="p-3 bg-blue-900/20 text-blue-200 border border-blue-900/50 rounded-lg text-sm mb-2">Lista spesa lunga ({shoppingList.length})</div>}
-             {monthlyStats.balance >= 0 && shoppingList.length <= 5 && <p className="text-slate-500 text-sm">Nessun avviso critico.</p>}
+        <div className="space-y-4">
+           {/* SYSTEM ALERTS - HIGH PRIORITY */}
+           {monthlyStats.balance < 0 && (
+             <div className="bg-slate-900/80 p-4 rounded-xl border-l-4 border-red-500 shadow-sm flex items-start gap-3">
+               <AlertTriangle className="text-red-500 shrink-0" size={20}/>
+               <div>
+                  <h4 className="font-bold text-red-200 text-sm">Saldo Negativo!</h4>
+                  <p className="text-xs text-red-200/70 mt-1">Stai spendendo più di quanto guadagni questo mese.</p>
+               </div>
+             </div>
+           )}
+           {shoppingList.length > 5 && (
+             <div className="bg-slate-900/80 p-4 rounded-xl border-l-4 border-blue-500 shadow-sm flex items-start gap-3">
+               <ShoppingCart className="text-blue-500 shrink-0" size={20}/>
+               <div>
+                  <h4 className="font-bold text-blue-200 text-sm">Lista spesa lunga</h4>
+                  <p className="text-xs text-blue-200/70 mt-1">Hai {shoppingList.length} prodotti da acquistare.</p>
+               </div>
+             </div>
+           )}
+
+           {/* HEADER & TOGGLE ADD */}
+           <div className="flex items-center justify-between mt-6 mb-2">
+             <h3 className="font-bold text-white flex gap-2"><Bell className="text-yellow-400"/> Promemoria</h3>
+             <button 
+               onClick={() => setIsAddingAlert(!isAddingAlert)} 
+               className={`p-2 rounded-full transition-colors ${isAddingAlert ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+             >
+               {isAddingAlert ? <ChevronUp size={20}/> : <Plus size={20}/>}
+             </button>
            </div>
            
-           <div>
-             <h3 className="font-bold text-white mb-3 flex gap-2"><Edit2 className="text-indigo-400"/> I miei Promemoria</h3>
-             <div className="bg-slate-900/50 p-5 rounded-xl border border-slate-800 mb-4 space-y-4">
+           {/* COLLAPSIBLE ADD FORM */}
+           {isAddingAlert && (
+             <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 mb-4 animate-slide-up space-y-4">
                  <div className="flex gap-2 items-center">
                     <input value={newAlertMsg} onChange={e => setNewAlertMsg(e.target.value)} placeholder="Messaggio avviso..." className="flex-1 bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-lg px-4 py-3 text-white outline-none placeholder-slate-600 text-sm transition-colors"/>
                     <VoiceInput onResult={setNewAlertMsg} />
                  </div>
                  
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                        <label className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1"><Calendar size={10}/> Data</label>
-                        <input type="date" value={newAlertDate} onChange={e => setNewAlertDate(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-lg px-3 py-3 text-white outline-none text-xs accent-indigo-600 transition-colors"/>
+                 <div className="grid grid-cols-2 gap-3">
+                    <div className="relative">
+                        <input type="date" value={newAlertDate} onChange={e => setNewAlertDate(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-xs text-white rounded-lg px-3 py-3 outline-none focus:border-indigo-500 uppercase tracking-wide"/>
+                        <Calendar className="absolute right-3 top-3 text-indigo-500 pointer-events-none" size={14}/>
                     </div>
-                    <div className="space-y-1">
-                        <label className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1"><Clock size={10}/> Ora</label>
-                        <input type="time" value={newAlertTime} onChange={e => setNewAlertTime(e.target.value)} className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-lg px-3 py-3 text-white outline-none text-xs accent-indigo-600 transition-colors"/>
+                    <div className="relative">
+                        <input type="time" value={newAlertTime} onChange={e => setNewAlertTime(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-xs text-white rounded-lg px-3 py-3 outline-none focus:border-indigo-500 uppercase tracking-wide"/>
+                        <Clock className="absolute right-3 top-3 text-indigo-500 pointer-events-none" size={14}/>
                     </div>
                  </div>
 
-                 <button onClick={handleAddAlert} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-indigo-500 flex items-center justify-center gap-2 mt-2">
-                    <Plus size={18}/> Aggiungi Promemoria
+                 <button onClick={handleAddAlert} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-indigo-500 flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20">
+                    <Save size={18}/> Salva Promemoria
                  </button>
              </div>
+           )}
 
+           {/* LIST OF MANUAL ALERTS */}
+           <div className="space-y-2">
              {manualAlerts.map(a => (
                <SwipeableItem key={a.id} onSwipeLeft={() => setManualAlerts(p => p.filter(x => x.id !== a.id))}>
-                 <div className="p-4 flex items-center justify-between h-[60px]">
-                     <div className="flex flex-col">
-                        <span className="text-white text-sm font-medium">{a.message}</span>
-                        <div className="flex gap-2 text-[10px] text-slate-500">
-                           <span className="flex items-center gap-1"><Calendar size={10}/> {new Date(a.date).toLocaleDateString()}</span>
-                           <span className="flex items-center gap-1"><Clock size={10}/> {a.time}</span>
-                        </div>
-                     </div>
+                 <div className="bg-slate-900/40 p-4 rounded-xl border-l-4 border-slate-600 flex flex-col gap-1 min-h-[70px]">
+                    <span className="text-white text-sm font-medium leading-relaxed">{a.message}</span>
+                    <div className="flex gap-3 text-[10px] text-indigo-300 font-mono mt-1">
+                       <span className="flex items-center gap-1"><Calendar size={10}/> {new Date(a.date).toLocaleDateString()}</span>
+                       <span className="flex items-center gap-1"><Clock size={10}/> {a.time}</span>
+                    </div>
                  </div>
                </SwipeableItem>
              ))}
+             {manualAlerts.length === 0 && !isAddingAlert && (
+               <p className="text-center text-slate-600 text-xs py-4">Nessun promemoria impostato.</p>
+             )}
            </div>
         </div>
       );
