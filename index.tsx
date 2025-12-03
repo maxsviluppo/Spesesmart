@@ -4,7 +4,8 @@ import {
   Plus, Home, ShoppingCart, ListTodo, Bell, BarChart3, 
   Wallet, PieChart as PieChartIcon, ArrowRight, Sparkles, CheckCircle2, Circle, Trash2, AlertTriangle, Info,
   ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut, Calendar, Clock, User, Key, Lock, ExternalLink, ChevronDown, ChevronUp, Mail,
-  Sun, Cloud, CloudRain, CloudSnow, CloudLightning, MapPin, Droplets, ThermometerSun, Smartphone, Layout, Volume2, Eye, EyeOff, History
+  Sun, Cloud, CloudRain, CloudSnow, CloudLightning, MapPin, Droplets, ThermometerSun, Smartphone, Layout, Volume2, Eye, EyeOff, History,
+  Flag
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
@@ -41,11 +42,14 @@ export interface ListItem {
   completed: boolean;
 }
 
+export type AlertPriority = 'high' | 'medium' | 'low';
+
 export interface ManualAlert {
   id: string;
   message: string;
   date: string; // ISO Date only
   time: string; // HH:mm
+  priority: AlertPriority;
   completed?: boolean;
 }
 
@@ -65,38 +69,24 @@ export interface WeatherData {
 const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
 
 // --- SERVICES ---
-// Gestione API Key dinamica
-let ai: GoogleGenAI | null = null;
+// Initialization of GenAI client with environment variable as per guidelines
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const initAI = (key: string) => {
-  if (key) {
-    try {
-      ai = new GoogleGenAI({ apiKey: key });
-    } catch (e) {
-      console.error("Errore inizializzazione AI", e);
-      ai = null;
-    }
-  } else {
-    ai = null;
-  }
-};
-
-const getFinancialAdvice = async (transactions: Transaction[], month: string, userKey: string) => {
-  // Reinitalize if needed
-  if (!ai && userKey) initAI(userKey);
-  
-  if (!ai) return "API Key mancante. Inseriscila nelle Impostazioni per usare l'AI.";
-  if (transactions.length === 0) return "Non ci sono abbastanza dati per generare un'analisi questo mese.";
+const getFinancialAdvice = async (transactions: Transaction[], month: string) => {
+  if (transactions.length === 0) return "Non ci sono abbastanza dati per generare un'analisi completa.";
 
   const summary = transactions.map(t => 
     `- ${t.date.split('T')[0]}: ${t.type === 'expense' ? 'Spesa' : 'Entrata'} di €${t.amount} per ${t.description} (${t.category})`
   ).join('\n');
 
   const prompt = `
-    Sei un assistente finanziario. Analizza le transazioni per ${month}.
+    Sei un assistente finanziario personale. Analizza le transazioni dell'utente.
     Dati: ${summary}
-    Fornisci: 1. Riassunto breve. 2. Categoria più costosa. 3. Un consiglio flash.
-    Max 100 parole.
+    Fornisci: 
+    1. Un breve riassunto della situazione finanziaria generale.
+    2. Identifica tendenze o categorie critiche.
+    3. Un consiglio pratico per migliorare il bilancio.
+    Sii conciso (max 120 parole), motivante e diretto.
   `;
 
   try {
@@ -106,7 +96,8 @@ const getFinancialAdvice = async (transactions: Transaction[], month: string, us
     });
     return response.text || "Analisi non disponibile.";
   } catch (error) {
-    return "Errore AI. Controlla la tua API Key.";
+    console.error(error);
+    return "Errore AI. Riprova più tardi.";
   }
 };
 
@@ -506,7 +497,7 @@ const AddModal = ({ isOpen, onClose, onSave, initialData, expenseCategories, inc
 };
 
 // Settings Modal
-const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, apiKey, setApiKey, notificationsEnabled, setNotificationsEnabled, startUpTab, setStartUpTab, onSaveSettings, alarmVolume, setAlarmVolume, onTestSound }: any) => {
+const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, notificationsEnabled, setNotificationsEnabled, startUpTab, setStartUpTab, onSaveSettings, alarmVolume, setAlarmVolume, onTestSound }: any) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
@@ -589,22 +580,6 @@ const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, ap
              <button disabled className="w-full py-3 bg-slate-800 text-slate-500 rounded-xl font-medium border border-slate-700 flex items-center justify-center gap-2 cursor-not-allowed opacity-60">
                 <Lock size={16}/> Registrazione / Accedi (Presto)
              </button>
-          </div>
-
-          {/* AI CONFIG */}
-          <div className="space-y-3">
-             <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Key size={14}/> Intelligenza Artificiale</h3>
-             <div className="bg-indigo-950/20 p-3 rounded-lg border border-indigo-900/40">
-                <p className="text-xs text-indigo-200 mb-2">Per usare le funzioni AI (consigli e analisi), inserisci la tua API Key di Google Gemini.</p>
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-[10px] text-indigo-400 flex items-center gap-1 hover:underline mb-3"><ExternalLink size={10}/> Ottieni API Key qui</a>
-                <input 
-                    type="password" 
-                    value={apiKey} 
-                    onChange={(e) => setApiKey(e.target.value)} 
-                    placeholder="Incolla API Key (AIza...)" 
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:border-indigo-500 outline-none font-mono"
-                />
-             </div>
           </div>
 
           {/* INFO */}
@@ -705,7 +680,6 @@ const App = () => {
 
   // Config State
   const [userName, setUserName] = useState(() => localStorage.getItem('userName') || '');
-  const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('userApiKey') || '');
 
   // UI State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -723,15 +697,11 @@ const App = () => {
   const [newAlertMsg, setNewAlertMsg] = useState('');
   const [newAlertDate, setNewAlertDate] = useState('');
   const [newAlertTime, setNewAlertTime] = useState('');
+  const [newAlertPriority, setNewAlertPriority] = useState<AlertPriority>('medium');
 
   // AI
   const [aiAdvice, setAiAdvice] = useState('');
   const [isLoadingAi, setIsLoadingAi] = useState(false);
-
-  // Init AI on load if key exists
-  useEffect(() => {
-    if (userApiKey) initAI(userApiKey);
-  }, [userApiKey]);
 
   // Persist
   useEffect(() => { localStorage.setItem('transactions', JSON.stringify(transactions)); }, [transactions]);
@@ -741,7 +711,6 @@ const App = () => {
   useEffect(() => { localStorage.setItem('expenseCategories', JSON.stringify(expenseCategories)); }, [expenseCategories]);
   useEffect(() => { localStorage.setItem('incomeCategories', JSON.stringify(incomeCategories)); }, [incomeCategories]);
   useEffect(() => { localStorage.setItem('userName', userName); }, [userName]);
-  useEffect(() => { localStorage.setItem('userApiKey', userApiKey); }, [userApiKey]);
   useEffect(() => { localStorage.setItem('alarmVolume', alarmVolume.toString()); }, [alarmVolume]);
   useEffect(() => { localStorage.setItem('isBalanceHidden', String(isBalanceHidden)); }, [isBalanceHidden]);
 
@@ -822,21 +791,7 @@ const App = () => {
 
   const handleClearData = () => {
     if (confirm("Sei sicuro di voler cancellare TUTTI i dati?")) {
-        let keepKey = false;
-        if (userApiKey) {
-            keepKey = confirm("Vuoi mantenere salvata la tua API Key?");
-        }
-        
-        const keyBackup = userApiKey;
-        const nameBackup = userName;
-
         localStorage.clear();
-        
-        if (keepKey) {
-            localStorage.setItem('userApiKey', keyBackup);
-            localStorage.setItem('userName', nameBackup); // Keep name too mostly
-        }
-        
         window.location.reload();
     }
   };
@@ -890,7 +845,7 @@ const App = () => {
     }
     
     if (editingAlertId) {
-       setManualAlerts(p => p.map(a => a.id === editingAlertId ? { ...a, message: newAlertMsg, date: newAlertDate, time: newAlertTime } : a));
+       setManualAlerts(p => p.map(a => a.id === editingAlertId ? { ...a, message: newAlertMsg, date: newAlertDate, time: newAlertTime, priority: newAlertPriority } : a));
        setEditingAlertId(null);
     } else {
        setManualAlerts([{ 
@@ -898,6 +853,7 @@ const App = () => {
           message: newAlertMsg, 
           date: newAlertDate, 
           time: newAlertTime,
+          priority: newAlertPriority,
           completed: false
        }, ...manualAlerts]);
     }
@@ -905,6 +861,7 @@ const App = () => {
     setNewAlertMsg('');
     setNewAlertDate('');
     setNewAlertTime('');
+    setNewAlertPriority('medium');
     setIsAddingAlert(false);
   };
 
@@ -913,6 +870,7 @@ const App = () => {
      setNewAlertMsg(alert.message);
      setNewAlertDate(alert.date);
      setNewAlertTime(alert.time);
+     setNewAlertPriority(alert.priority);
      setIsAddingAlert(true);
   };
   
@@ -930,13 +888,6 @@ const App = () => {
       case 'home': return (
         <>
           <WeatherWidget />
-          <section className="bg-indigo-950/30 p-4 rounded-xl border border-indigo-500/20 relative mb-6">
-             <div className="flex justify-between items-center mb-2">
-               <div className="flex items-center gap-2 text-indigo-200 font-bold"><Sparkles size={16}/><span>AI Advisor</span></div>
-               <button onClick={async () => { setIsLoadingAi(true); setAiAdvice(await getFinancialAdvice(transactions, 'Mese Corrente', userApiKey)); setIsLoadingAi(false); }} disabled={isLoadingAi} className="text-[10px] bg-indigo-600 px-2 py-1 rounded text-white">{isLoadingAi ? '...' : 'Analizza'}</button>
-             </div>
-             <p className="text-xs text-indigo-100/80 leading-relaxed whitespace-pre-line">{String(aiAdvice || "Tocca Analizza per consigli (Richiede API Key).")}</p>
-          </section>
           <div className="space-y-2">
             <h3 className="font-bold text-white mb-2">Recenti</h3>
             {transactions.slice(0, 10).map(t => (
@@ -1008,7 +959,14 @@ const App = () => {
           ))}
         </div>
       );
-      case 'alerts': return (
+      case 'alerts': {
+        const sortedAlerts = [...manualAlerts].sort((a, b) => {
+            const timeA = new Date(`${a.date}T${a.time}`).getTime();
+            const timeB = new Date(`${b.date}T${b.time}`).getTime();
+            return (isNaN(timeA) ? 0 : timeA) - (isNaN(timeB) ? 0 : timeB);
+        });
+        
+        return (
         <div className="space-y-4">
            {/* SYSTEM ALERTS - HIGH PRIORITY */}
            {monthlyStats.balance < 0 && (
@@ -1020,21 +978,12 @@ const App = () => {
                </div>
              </div>
            )}
-           {shoppingList.length > 5 && (
-             <div className="bg-slate-900/80 p-4 rounded-xl border-l-4 border-blue-500 shadow-sm flex items-start gap-3">
-               <ShoppingCart className="text-blue-500 shrink-0" size={20}/>
-               <div>
-                  <h4 className="font-bold text-blue-200 text-sm">Lista spesa lunga</h4>
-                  <p className="text-xs text-blue-200/70 mt-1">Hai {shoppingList.length} prodotti da acquistare.</p>
-               </div>
-             </div>
-           )}
 
            {/* HEADER & TOGGLE ADD */}
            <div className="flex items-center justify-between mt-6 mb-2">
              <h3 className="font-bold text-white flex gap-2"><Bell className="text-yellow-400"/> Promemoria</h3>
              <button 
-               onClick={() => { setIsAddingAlert(!isAddingAlert); setEditingAlertId(null); setNewAlertMsg(''); setNewAlertDate(''); setNewAlertTime(''); }} 
+               onClick={() => { setIsAddingAlert(!isAddingAlert); setEditingAlertId(null); setNewAlertMsg(''); setNewAlertDate(''); setNewAlertTime(''); setNewAlertPriority('medium'); }} 
                className={`p-2 rounded-full transition-colors ${isAddingAlert ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
              >
                {isAddingAlert ? <ChevronUp size={20}/> : <Plus size={20}/>}
@@ -1060,6 +1009,25 @@ const App = () => {
                     </div>
                  </div>
 
+                 {/* PRIORITY SELECTOR */}
+                 <div className="flex items-center gap-2 w-full">
+                     <span className="text-[10px] text-slate-500 uppercase font-bold">Priorità:</span>
+                     <div className="flex gap-2 flex-1">
+                         {(['high', 'medium', 'low'] as AlertPriority[]).map(p => (
+                             <button 
+                                key={p} 
+                                onClick={() => setNewAlertPriority(p)}
+                                className={`flex-1 text-[10px] py-1 rounded border capitalize ${newAlertPriority === p 
+                                    ? (p === 'high' ? 'bg-red-900/50 border-red-500 text-red-200' : p === 'medium' ? 'bg-yellow-900/50 border-yellow-500 text-yellow-200' : 'bg-blue-900/50 border-blue-500 text-blue-200')
+                                    : 'bg-slate-950 border-slate-800 text-slate-500'
+                                }`}
+                             >
+                                 {p === 'high' ? 'Alta' : p === 'medium' ? 'Media' : 'Bassa'}
+                             </button>
+                         ))}
+                     </div>
+                 </div>
+
                  <button onClick={handleSaveAlert} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-indigo-500 flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20">
                     <Save size={18}/> {editingAlertId ? 'Aggiorna Promemoria' : 'Salva Promemoria'}
                  </button>
@@ -1069,7 +1037,12 @@ const App = () => {
            {/* LIST OF MANUAL ALERTS */}
            <div className="space-y-2">
              <p className="text-[10px] text-slate-500 text-center mb-2 italic">(Doppio clic per segnare come completato)</p>
-             {manualAlerts.map(a => (
+             {sortedAlerts.map(a => {
+               const isDue = new Date(`${a.date}T${a.time}`) <= new Date();
+               const borderColor = a.priority === 'high' ? 'border-red-500' : a.priority === 'medium' ? 'border-yellow-500' : 'border-blue-500';
+               const neonClass = (isDue && !a.completed) ? 'shadow-[0_0_15px_rgba(239,68,68,0.6)] border-red-500' : borderColor;
+               
+               return (
                <SwipeableItem 
                    key={a.id} 
                    onSwipeLeft={() => deleteAlert(a.id)}
@@ -1078,26 +1051,43 @@ const App = () => {
                    rightIcon={<Edit2 size={24}/>}
                    onDoubleClick={() => toggleAlertComplete(a.id)}
                >
-                 <div className={`bg-slate-900/40 p-4 rounded-xl border-l-4 flex flex-col gap-1 min-h-[70px] transition-colors ${a.completed ? 'border-emerald-500 bg-emerald-950/20' : 'border-slate-600'}`}>
+                 <div className={`bg-slate-900/40 p-4 rounded-xl border-l-4 flex flex-col gap-1 min-h-[70px] transition-all ${a.completed ? 'border-emerald-500 bg-emerald-950/20' : neonClass}`}>
                     <div className="flex justify-between items-start">
-                        <span className={`text-sm font-medium leading-relaxed ${a.completed ? 'text-emerald-300 line-through' : 'text-white'}`}>{String(a.message)}</span>
+                        <div className="flex items-center gap-2">
+                            {(isDue && !a.completed) && <Bell size={14} className="text-red-400 animate-pulse" />}
+                            <span className={`text-sm font-medium leading-relaxed ${a.completed ? 'text-emerald-300 line-through' : 'text-white'}`}>{String(a.message)}</span>
+                        </div>
                         {a.completed && <span className="text-[9px] font-bold bg-emerald-900/50 text-emerald-400 px-2 py-0.5 rounded uppercase">Completato</span>}
+                        {(!a.completed && isDue) && <span className="text-[9px] font-bold bg-red-900/50 text-red-400 px-2 py-0.5 rounded uppercase animate-pulse">Scaduto</span>}
                     </div>
                     <div className="flex gap-3 text-[10px] text-indigo-300 font-mono mt-1">
                        <span className="flex items-center gap-1"><Calendar size={10}/> {new Date(a.date).toLocaleDateString()}</span>
                        <span className="flex items-center gap-1"><Clock size={10}/> {a.time}</span>
+                       <span className={`capitalize ml-auto ${a.priority === 'high' ? 'text-red-400' : a.priority === 'medium' ? 'text-yellow-400' : 'text-blue-400'}`}>{a.priority}</span>
                     </div>
                  </div>
                </SwipeableItem>
-             ))}
+               );
+             })}
              {manualAlerts.length === 0 && !isAddingAlert && (
                <p className="text-center text-slate-600 text-xs py-4">Nessun promemoria impostato.</p>
              )}
            </div>
         </div>
-      );
+        );
+      }
       case 'reports': return (
         <div className="space-y-6">
+            
+          {/* AI ADVISOR MOVED HERE */}
+          <section className="bg-indigo-950/30 p-4 rounded-xl border border-indigo-500/20 relative">
+             <div className="flex justify-between items-center mb-2">
+               <div className="flex items-center gap-2 text-indigo-200 font-bold"><Sparkles size={16}/><span>AI Advisor (Analisi Completa)</span></div>
+               <button onClick={async () => { setIsLoadingAi(true); setAiAdvice(await getFinancialAdvice(transactions, 'Generale')); setIsLoadingAi(false); }} disabled={isLoadingAi} className="text-[10px] bg-indigo-600 px-2 py-1 rounded text-white">{isLoadingAi ? '...' : 'Analizza Tutto'}</button>
+             </div>
+             <p className="text-xs text-indigo-100/80 leading-relaxed whitespace-pre-line">{String(aiAdvice || "Tocca Analizza per ricevere consigli basati su tutte le tue finanze.")}</p>
+          </section>
+
           <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
             <h3 className="font-bold text-white mb-4">Report Mensile</h3>
             <div className="space-y-3">
@@ -1201,8 +1191,6 @@ const App = () => {
             onClearData={handleClearData} 
             userName={userName}
             setUserName={setUserName}
-            apiKey={userApiKey}
-            setApiKey={setUserApiKey}
             notificationsEnabled={notificationsEnabled}
             setNotificationsEnabled={setNotificationsEnabled}
             startUpTab={startUpTab}
