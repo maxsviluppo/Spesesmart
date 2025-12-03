@@ -134,10 +134,11 @@ interface TransactionItemProps {
   transaction: Transaction;
   onDelete: (id: string) => void;
   onEdit: (transaction: Transaction) => void;
+  onUpdateNote: (id: string, note: string) => void;
   isFirst?: boolean;
 }
 
-const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete, onEdit, isFirst = false }) => {
+const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete, onEdit, onUpdateNote, isFirst = false }) => {
   const isExpense = transaction.type === 'expense';
   const hasNote = !!transaction.note && transaction.note.trim().length > 0;
   
@@ -146,8 +147,16 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
   const [currentX, setCurrentX] = useState<number>(0);
   const [isDragging, setIsDragging] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false); // State for expanding note
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  // Note editing state
+  const [localNote, setLocalNote] = useState(transaction.note || '');
   const itemRef = useRef<HTMLDivElement>(null);
+
+  // Sync local note state if props change (e.g. from modal edit)
+  useEffect(() => {
+    setLocalNote(transaction.note || '');
+  }, [transaction.note]);
 
   // Constants for swipe
   const SWIPE_THRESHOLD = 70; 
@@ -237,10 +246,8 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
     setIsDragging(false);
     
     if (wasTap) {
-      // It's a tap, toggle expansion
-      if (hasNote) {
-        setIsExpanded(!isExpanded);
-      }
+      // Tap always toggles expansion to allow adding/editing note
+      setIsExpanded(!isExpanded);
       setCurrentX(0);
     } else if (currentX > SWIPE_THRESHOLD) {
       // Swipe Right -> Edit
@@ -261,6 +268,12 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
       setCurrentX(0);
     }
     setStartX(null);
+  };
+
+  const handleSaveNote = () => {
+    if (localNote !== transaction.note) {
+      onUpdateNote(transaction.id, localNote);
+    }
   };
 
   // Helper to determine background color
@@ -325,28 +338,40 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
             <span className={`font-bold ${isExpense ? 'text-red-400' : 'text-emerald-400'}`}>
               {isExpense ? '-' : '+'}€{transaction.amount.toFixed(2)}
             </span>
-            {hasNote && (
-               <div className={`flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider transition-colors ${isExpanded ? 'text-indigo-400' : 'text-indigo-400/60'}`}>
+            {/* Note Indicator */}
+            {(hasNote || isExpanded) && (
+               <div className={`flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider transition-colors ${hasNote ? 'text-indigo-400' : 'text-slate-600'}`}>
                  <FileText size={12} />
-                 {isExpanded ? <span>Nascondi</span> : <span>Info</span>}
+                 {isExpanded ? (
+                    hasNote ? <span>Modifica</span> : <span>+ Nota</span>
+                 ) : (
+                    <span>Info</span>
+                 )}
                </div>
             )}
           </div>
         </div>
 
-        {/* Expanded Note Section */}
-        {hasNote && (
-          <div 
-            className={`px-4 pb-4 transition-all duration-300 ease-in-out ${isExpanded ? 'opacity-100 max-h-40' : 'opacity-0 max-h-0'}`}
-          >
-            <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800/50">
-              <div className="flex items-start gap-2">
-                 <FileText size={14} className="text-slate-500 mt-0.5 shrink-0" />
-                 <p className="text-sm text-slate-300 leading-relaxed italic">{transaction.note}</p>
-              </div>
-            </div>
+        {/* Expanded Note Section (Editable) */}
+        <div 
+          className={`px-4 transition-all duration-300 ease-in-out ${isExpanded ? 'opacity-100 max-h-60 pb-4' : 'opacity-0 max-h-0 pb-0'}`}
+        >
+          <div className="bg-slate-950/50 p-1 rounded-lg border border-slate-800/50">
+             <textarea
+               value={localNote}
+               onChange={(e) => setLocalNote(e.target.value)}
+               onBlur={handleSaveNote}
+               // Stop propagation to prevent swiping while typing
+               onTouchStart={(e) => e.stopPropagation()}
+               onMouseDown={(e) => e.stopPropagation()}
+               placeholder="Aggiungi una nota qui..."
+               className="w-full bg-transparent text-sm text-slate-300 leading-relaxed italic p-2 outline-none resize-none h-24 placeholder-slate-600 focus:text-slate-100"
+             />
           </div>
-        )}
+          <div className="flex justify-end mt-1">
+             <span className="text-[10px] text-slate-600">Clicca fuori per salvare</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -763,6 +788,12 @@ function App() {
     }
   };
 
+  const handleUpdateNote = (id: string, note: string) => {
+    setTransactions(prev => prev.map(t => 
+      t.id === id ? { ...t, note } : t
+    ));
+  };
+
   const handleAddCategory = (newCategory: string, type: TransactionType) => {
     if (type === 'expense') {
       if (!expenseCategories.includes(newCategory)) {
@@ -999,6 +1030,7 @@ function App() {
                      transaction={t} 
                      onDelete={handleDelete}
                      onEdit={handleEdit}
+                     onUpdateNote={handleUpdateNote}
                      isFirst={index === 0 && selectedCategory === 'Tutte'}
                    />
                  ))}
