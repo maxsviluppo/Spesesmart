@@ -246,6 +246,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
 
   if (isDeleting && Math.abs(currentX) >= window.innerWidth) {
       // Return null or placeholder while waiting for parent to delete data
+      // This prevents visual glitching before the list re-renders
       return <div className="h-[88px] mb-3 w-full"></div>;
   }
 
@@ -335,7 +336,7 @@ const AddModal: React.FC<AddModalProps> = ({
   // Determine current list based on type
   const currentCategories = type === 'expense' ? expenseCategories : incomeCategories;
 
-  // Reset or Populate form
+  // Reset or Populate form when modal opens or initialData changes
   useEffect(() => {
     if (isOpen) {
       setIsAddingCategory(false);
@@ -347,13 +348,15 @@ const AddModal: React.FC<AddModalProps> = ({
         setDescription(initialData.description);
         setCategory(initialData.category);
       } else {
+        // Reset for new entry
         setType('expense');
         setAmount('');
         setDescription('');
+        // Default category is the first one available
         setCategory(expenseCategories[0] || '');
       }
     }
-  }, [isOpen, initialData, expenseCategories]);
+  }, [isOpen, initialData, expenseCategories]); // Added expenseCategories to dependency to ensure reset works on load
 
   // Focus input when adding category
   useEffect(() => {
@@ -371,9 +374,9 @@ const AddModal: React.FC<AddModalProps> = ({
     onSave(
       parseFloat(amount), 
       description, 
-      category || currentCategories[0], 
+      category || currentCategories[0], // Fallback if somehow empty
       type,
-      initialData?.id
+      initialData?.id // Pass ID if editing
     );
     
     onClose();
@@ -382,7 +385,7 @@ const AddModal: React.FC<AddModalProps> = ({
   const handleCreateCategory = () => {
     if (newCategoryName.trim()) {
       onAddCategory(newCategoryName.trim(), type);
-      setCategory(newCategoryName.trim());
+      setCategory(newCategoryName.trim()); // Select the new category
       setNewCategoryName('');
       setIsAddingCategory(false);
     } else {
@@ -789,35 +792,38 @@ function App() {
     <div className="min-h-screen pb-24 max-w-lg mx-auto bg-slate-950 border-x border-slate-800 shadow-2xl overflow-hidden relative text-slate-200">
       
       {/* Header */}
-      <header className="bg-slate-950/80 backdrop-blur-md p-6 sticky top-0 z-10 border-b border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
-            <Wallet size={18} strokeWidth={3} />
+      <header className="bg-slate-950/90 backdrop-blur-xl px-6 py-5 sticky top-0 z-30 border-b border-white/5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-tr from-indigo-600 to-violet-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 ring-1 ring-white/10">
+            <Wallet size={20} strokeWidth={2.5} />
           </div>
-          <h1 className="text-xl font-bold text-slate-100 tracking-tight">SpeseSmart</h1>
+          <div className="flex flex-col">
+             <h1 className="text-lg font-bold text-white tracking-tight leading-tight">SpeseSmart</h1>
+             <span className="text-[10px] font-medium text-slate-500 tracking-wider uppercase">Wallet</span>
+          </div>
         </div>
         
-        {/* Date Navigator with Native Picker */}
-        <div className="flex items-center bg-slate-900 rounded-full p-1 border border-slate-800">
-          <button onClick={() => changeMonth(-1)} className="p-1 rounded-full hover:bg-slate-800 hover:text-white transition-all text-slate-500 z-10">
+        {/* Date Navigator */}
+        <div className="flex items-center bg-slate-900/80 rounded-full p-1 ring-1 ring-white/10 shadow-sm">
+          <button onClick={() => changeMonth(-1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors">
             <ChevronLeft size={16} />
           </button>
           
-          <div className="relative group mx-1">
-             <div className="flex items-center gap-1 justify-center px-2 text-sm font-semibold text-slate-300 capitalize w-32 py-1 group-hover:text-white transition-colors">
-                {currentDate.toLocaleString('it-IT', { month: 'long', year: 'numeric' })}
-                <CalendarDays size={14} className="opacity-40 group-hover:opacity-100 transition-opacity" />
+          <div className="relative px-3 h-8 flex items-center justify-center">
+             <div className="flex items-baseline gap-1.5 text-sm">
+                <span className="font-semibold text-white capitalize">{currentDate.toLocaleString('it-IT', { month: 'short' })}</span>
+                <span className="text-slate-500 font-medium text-xs">{currentDate.getFullYear()}</span>
              </div>
              {/* Hidden Native Input */}
              <input
                 type="month"
                 value={currentMonthValue}
                 onChange={handleDateSelect}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
              />
           </div>
 
-          <button onClick={() => changeMonth(1)} className="p-1 rounded-full hover:bg-slate-800 hover:text-white transition-all text-slate-500 z-10">
+          <button onClick={() => changeMonth(1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors">
             <ChevronRight size={16} />
           </button>
         </div>
