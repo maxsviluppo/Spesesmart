@@ -100,15 +100,15 @@ export interface Alert {
   title: string;
   datetime: string; // ISO String containing date and time
   priority: PriorityLevel;
-  notified: boolean; // To prevent double notifications
-  completed: boolean; // New field for completion status
+  notified: boolean; 
+  completed: boolean;
 }
 
 export interface UserSettings {
   userName: string;
   soundEnabled: boolean;
   hapticEnabled: boolean;
-  apiKey?: string; // Optional API Key for Gemini
+  apiKey?: string; 
 }
 
 export const DEFAULT_EXPENSE_CATEGORIES = [
@@ -174,9 +174,7 @@ const playNotificationSound = (enabled: boolean = true) => {
 };
 
 // --- GEMINI SERVICE ---
-// Now accepts the API Key dynamically
 export const getFinancialAdvice = async (transactions: Transaction[], month: string, userApiKey?: string) => {
-  // Use user provided key first, fallback to env (if any)
   const activeKey = userApiKey || ((typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '');
 
   if (!activeKey) {
@@ -468,7 +466,6 @@ const AlertItem: React.FC<AlertItemProps> = ({ alert, onDelete, onEdit, onToggle
 
   useEffect(() => { return () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current); }; }, []);
 
-  // Swipe handlers reused logic (simplified copy for brevity, idealy abstracted)
   const SWIPE_THRESHOLD = 70; const DELETE_THRESHOLD = 150; const MAX_SWIPE_RIGHT = 100;
   const handleTouchStart = (e: React.TouchEvent) => { if (isConfirmingDelete) return; setStartX(e.touches[0].clientX); setIsDragging(true); };
   const handleTouchMove = (e: React.TouchEvent) => { if (startX === null || isDeleting || isConfirmingDelete) return; const x = e.touches[0].clientX; const diff = x - startX; if (diff > MAX_SWIPE_RIGHT) setCurrentX(MAX_SWIPE_RIGHT + (diff - MAX_SWIPE_RIGHT) * 0.2); else setCurrentX(diff); };
@@ -490,7 +487,6 @@ const AlertItem: React.FC<AlertItemProps> = ({ alert, onDelete, onEdit, onToggle
   if (isDeleting) return <div className="h-[88px] mb-3 w-full bg-transparent transition-all duration-300 opacity-0 transform -translate-x-full"></div>;
   if (isConfirmingDelete) return ( <div className="relative mb-3 h-[88px] w-full bg-red-950/40 border border-red-900/50 rounded-xl flex items-center justify-between px-6 animate-fade-in overflow-hidden"> <div className="absolute bottom-0 left-0 h-1 bg-red-600/50 w-full animate-[shrink_3s_linear_forwards]" style={{ animationName: 'shrinkWidth' }}></div> <style>{`@keyframes shrinkWidth { from { width: 100%; } to { width: 0%; } }`}</style> <div className="flex items-center gap-2 text-red-400"> <Trash2 size={20} /> <span className="font-medium text-sm">Eliminato</span> </div> <button onClick={handleUndo} className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm border border-slate-700 transition-colors z-10"> <RotateCcw size={16} /> Annulla </button> </div> );
 
-  // Priority Color Logic
   const getPriorityColor = () => {
     if (isCompleted) return 'border-l-emerald-500';
     switch (alert.priority) {
@@ -709,9 +705,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
               <LogOut size={18} />
               {resetStep === 0 ? 'Resetta Dati App' : resetStep === 1 ? 'Sei sicuro? Clicca ancora' : 'Conferma Cancellazione'}
             </button>
-            {resetStep === 2 && (
-               <button onClick={onReset} className="hidden"></button> /* Trigger handled in onClick above via logic check or separate effect, but keeping simpler: */
-            )}
              {resetStep > 0 && resetStep < 3 && (
                  <button onClick={() => setResetStep(0)} className="w-full py-2 text-slate-500 text-sm hover:text-slate-300">Annulla</button>
              )}
@@ -739,7 +732,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
   );
 };
 
-
 // --- COMPONENT: AlertModal ---
 interface AlertModalProps {
   isOpen: boolean;
@@ -766,7 +758,6 @@ const AlertModal: React.FC<AlertModalProps> = ({ isOpen, onClose, onSave, initia
         setTitle('');
         const now = new Date();
         setDate(now.toISOString().split('T')[0]);
-        // Set default time to next hour
         now.setHours(now.getHours() + 1);
         now.setMinutes(0);
         setTime(now.toTimeString().substring(0, 5));
@@ -835,12 +826,120 @@ const AlertModal: React.FC<AlertModalProps> = ({ isOpen, onClose, onSave, initia
   );
 };
 
-// --- MAIN APP COMPONENT ---
+// --- RESTORED COMPONENTS FOR COMPLETENESS (TaskItem, ShoppingListItem, StatsCard, ShoppingModal, AddModal) ---
+
+const TaskItem: React.FC<{task: Task, onToggle: (id: string) => void, onDelete: (id: string) => void, hapticEnabled: boolean}> = ({ task, onToggle, onDelete, hapticEnabled }) => {
+  const [startX, setStartX] = useState<number | null>(null);
+  const [currentX, setCurrentX] = useState<number>(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const DELETE_THRESHOLD = 150;
+
+  useEffect(() => { return () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current); }; }, []);
+
+  const handleTouchStart = (e: React.TouchEvent) => { if (isConfirmingDelete) return; setStartX(e.touches[0].clientX); setIsDragging(true); };
+  const handleTouchMove = (e: React.TouchEvent) => { if (startX === null || isDeleting || isConfirmingDelete) return; const diff = e.touches[0].clientX - startX; if (diff < 0) setCurrentX(diff); else setCurrentX(diff * 0.2); };
+  const handleTouchEnd = () => handleSwipeEnd();
+  const handleMouseDown = (e: React.MouseEvent) => { if (isConfirmingDelete) return; setStartX(e.clientX); setIsDragging(true); };
+  const handleMouseMove = (e: React.MouseEvent) => { if (!isDragging || startX === null || isDeleting || isConfirmingDelete) return; e.preventDefault(); const diff = e.clientX - startX; if (diff < 0) setCurrentX(diff); else setCurrentX(diff * 0.2); };
+  const handleMouseUp = () => handleSwipeEnd();
+  const handleMouseLeave = () => { if (isDragging) handleSwipeEnd(); };
+  const handleSwipeEnd = () => { setIsDragging(false); if (currentX < -DELETE_THRESHOLD) { handleStartDeleteSequence(); } else { setCurrentX(0); } setStartX(null); };
+  const handleStartDeleteSequence = () => { if (hapticEnabled && navigator.vibrate) navigator.vibrate(50); setIsConfirmingDelete(true); setCurrentX(0); deleteTimerRef.current = setTimeout(() => { setIsDeleting(true); setTimeout(() => onDelete(task.id), 300); }, 3000); };
+  const handleUndo = () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current); setIsConfirmingDelete(false); setCurrentX(0); };
+
+  if (isDeleting) return <div className="h-[88px] mb-3 w-full bg-transparent transition-all duration-300 opacity-0 transform -translate-x-full"></div>;
+  if (isConfirmingDelete) return ( <div className="relative mb-3 h-[88px] w-full bg-red-950/40 border border-red-900/50 rounded-xl flex items-center justify-between px-6 animate-fade-in overflow-hidden"> <div className="absolute bottom-0 left-0 h-1 bg-red-600/50 w-full animate-[shrink_3s_linear_forwards]" style={{ animationName: 'shrinkWidth' }}></div> <style>{`@keyframes shrinkWidth { from { width: 100%; } to { width: 0%; } }`}</style> <div className="flex items-center gap-2 text-red-400"> <Trash2 size={20} /> <span className="font-medium text-sm">Eliminato</span> </div> <button onClick={handleUndo} className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm border border-slate-700 transition-colors z-10"> <RotateCcw size={16} /> Annulla </button> </div> );
+
+  return (
+    <div className="relative mb-3 w-full h-[88px] overflow-hidden rounded-xl select-none touch-pan-y" onMouseLeave={handleMouseLeave} onMouseUp={handleMouseUp} style={{ touchAction: 'pan-y' }} onClick={() => { if (!isDragging && !isDeleting && !isConfirmingDelete) onToggle(task.id); }}>
+      <div className={`absolute inset-0 flex items-center justify-end px-6 transition-colors ${currentX < 0 ? 'bg-red-600' : 'bg-slate-900'}`}><div className="flex items-center gap-2 text-white font-bold transition-opacity duration-200" style={{ opacity: currentX < -30 ? 1 : 0 }}><span>Elimina</span> <Trash2 size={24} /></div></div>
+      <div className={`relative h-full bg-slate-900 flex items-center gap-4 p-4 border border-slate-800 rounded-xl transition-all duration-300 ${task.completed ? 'opacity-60 bg-slate-950/50 border-slate-900' : ''}`} style={{ transform: `translateX(${currentX}px)`, transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)' }} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}>
+        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors pointer-events-none ${task.completed ? 'bg-indigo-600 border-indigo-600' : 'border-slate-500'}`}>{task.completed && <Check size={14} className="text-white" strokeWidth={3} />}</div>
+        <span className={`flex-1 font-medium pointer-events-none transition-all ${task.completed ? 'text-slate-600 line-through' : 'text-slate-200'}`}>{task.text}</span>
+      </div>
+    </div>
+  );
+};
+
+const ShoppingListItem: React.FC<{item: ShoppingItem, onToggle: (id: string) => void, onDelete: (id: string) => void, onEdit: (item: ShoppingItem) => void, hapticEnabled: boolean}> = ({ item, onToggle, onDelete, onEdit, hapticEnabled }) => {
+  const [startX, setStartX] = useState<number | null>(null);
+  const [currentX, setCurrentX] = useState<number>(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const SWIPE_THRESHOLD = 70; const DELETE_THRESHOLD = 150; const MAX_SWIPE_RIGHT = 100;
+
+  useEffect(() => { return () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current); }; }, []);
+
+  const handleTouchStart = (e: React.TouchEvent) => { if (isConfirmingDelete) return; setStartX(e.touches[0].clientX); setIsDragging(true); };
+  const handleTouchMove = (e: React.TouchEvent) => { if (startX === null || isDeleting || isConfirmingDelete) return; const diff = e.touches[0].clientX - startX; if (diff > MAX_SWIPE_RIGHT) setCurrentX(MAX_SWIPE_RIGHT + (diff - MAX_SWIPE_RIGHT) * 0.2); else setCurrentX(diff); };
+  const handleTouchEnd = () => handleSwipeEnd();
+  const handleMouseDown = (e: React.MouseEvent) => { if (isConfirmingDelete) return; setStartX(e.clientX); setIsDragging(true); };
+  const handleMouseMove = (e: React.MouseEvent) => { if (!isDragging || startX === null || isDeleting || isConfirmingDelete) return; e.preventDefault(); const diff = e.clientX - startX; if (diff > MAX_SWIPE_RIGHT) setCurrentX(MAX_SWIPE_RIGHT + (diff - MAX_SWIPE_RIGHT) * 0.2); else setCurrentX(diff); };
+  const handleMouseUp = () => handleSwipeEnd();
+  const handleMouseLeave = () => { if (isDragging) handleSwipeEnd(); };
+  const handleSwipeEnd = () => { setIsDragging(false); if (currentX > SWIPE_THRESHOLD) { onEdit(item); setCurrentX(0); } else if (currentX < -DELETE_THRESHOLD) { handleStartDeleteSequence(); } else { setCurrentX(0); } setStartX(null); };
+  const handleStartDeleteSequence = () => { if (hapticEnabled && navigator.vibrate) navigator.vibrate(50); setIsConfirmingDelete(true); setCurrentX(0); deleteTimerRef.current = setTimeout(() => { setIsDeleting(true); setTimeout(() => onDelete(item.id), 300); }, 3000); };
+  const handleUndo = () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current); setIsConfirmingDelete(false); setCurrentX(0); };
+  const getSwipeBackground = () => { if (currentX > 0) return 'bg-indigo-600'; if (currentX < 0) return 'bg-red-600'; return 'bg-slate-900'; };
+
+  if (isDeleting) return <div className="h-[72px] mb-3 w-full bg-transparent transition-all duration-300 opacity-0 transform -translate-x-full"></div>;
+  if (isConfirmingDelete) return ( <div className="relative mb-3 h-[72px] w-full bg-red-950/40 border border-red-900/50 rounded-xl flex items-center justify-between px-6 animate-fade-in overflow-hidden"> <div className="absolute bottom-0 left-0 h-1 bg-red-600/50 w-full animate-[shrink_3s_linear_forwards]" style={{ animationName: 'shrinkWidth' }}></div> <style>{`@keyframes shrinkWidth { from { width: 100%; } to { width: 0%; } }`}</style> <div className="flex items-center gap-2 text-red-400"> <Trash2 size={20} /> <span className="font-medium text-sm">Eliminato</span> </div> <button onClick={handleUndo} className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm border border-slate-700 transition-colors z-10"> <RotateCcw size={16} /> Annulla </button> </div> );
+
+  return (
+    <div className="relative mb-3 w-full h-[72px] overflow-hidden rounded-xl select-none touch-pan-y" onMouseLeave={handleMouseLeave} onMouseUp={handleMouseUp} style={{ touchAction: 'pan-y' }} onClick={() => { if (!isDragging && !isDeleting && !isConfirmingDelete) onToggle(item.id); }}>
+      <div className={`absolute inset-0 flex items-center justify-between px-6 transition-colors ${getSwipeBackground()}`}><div className="flex items-center gap-2 text-white font-bold transition-opacity duration-200" style={{ opacity: currentX > 30 ? 1 : 0 }}><Edit2 size={24} /> <span>Modifica</span></div><div className="flex items-center gap-2 text-white font-bold transition-opacity duration-200" style={{ opacity: currentX < -30 ? 1 : 0 }}><span>Elimina</span> <Trash2 size={24} /></div></div>
+      <div className={`relative h-full bg-slate-900 flex items-center justify-between p-4 border border-slate-800 rounded-xl transition-transform ease-out ${item.completed ? 'opacity-50' : ''}`} style={{ transform: `translateX(${currentX}px)`, transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)' }} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}>
+        <div className="flex items-center gap-4 pointer-events-none"><div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${item.completed ? 'bg-emerald-600 border-emerald-600' : 'border-slate-500'}`}>{item.completed && <Check size={14} className="text-white" strokeWidth={3} />}</div><div className="flex flex-col"><span className={`font-medium ${item.completed ? 'text-slate-500 line-through' : 'text-slate-200'}`}>{item.name}</span><span className="text-[10px] text-slate-500 uppercase tracking-wide">{item.category}</span></div></div>
+      </div>
+    </div>
+  );
+};
+
+const StatsCard: React.FC<{label: string, amount: number, type: 'balance' | 'income' | 'expense'}> = ({ label, amount, type }) => {
+  let colorClass = "text-slate-200"; let bgClass = "bg-slate-900"; let borderClass = "border-slate-800";
+  if (type === 'income') { colorClass = "text-emerald-400"; bgClass = "bg-emerald-950/30"; borderClass = "border-emerald-900/30"; } else if (type === 'expense') { colorClass = "text-red-400"; bgClass = "bg-red-950/30"; borderClass = "border-red-900/30"; } else { colorClass = "text-indigo-400"; bgClass = "bg-slate-900"; }
+  return ( <div className={`flex-1 p-4 rounded-2xl border shadow-sm flex flex-col items-center justify-center ${bgClass} ${borderClass}`}><span className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">{label}</span><span className={`text-xl sm:text-2xl font-bold truncate max-w-full ${colorClass}`}>{amount.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</span></div> );
+};
+
+const ShoppingModal: React.FC<{isOpen: boolean, onClose: () => void, onSave: (name: string, category: string, id?: string) => void, initialData?: ShoppingItem | null, categories: string[], onAddCategory: (newCategory: string) => void}> = ({ isOpen, onClose, onSave, initialData, categories, onAddCategory }) => {
+  const [name, setName] = useState(''); const [category, setCategory] = useState(''); const [isAddingCategory, setIsAddingCategory] = useState(false); const [newCategoryName, setNewCategoryName] = useState(''); const newCategoryInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (isOpen) { setIsAddingCategory(false); setNewCategoryName(''); if (initialData) { setName(initialData.name); setCategory(initialData.category); } else { setName(''); setCategory(categories[0] || ''); } } }, [isOpen, initialData, categories]);
+  useEffect(() => { if (isAddingCategory && newCategoryInputRef.current) newCategoryInputRef.current.focus(); }, [isAddingCategory]);
+  if (!isOpen) return null;
+  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); if (!name.trim()) return; onSave(name, category || categories[0], initialData?.id); onClose(); };
+  const handleCreateCategory = () => { if (newCategoryName.trim()) { onAddCategory(newCategoryName.trim()); setCategory(newCategoryName.trim()); setNewCategoryName(''); setIsAddingCategory(false); } else { setIsAddingCategory(false); } };
+  const handleKeyDownCategory = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateCategory(); } else if (e.key === 'Escape') { setIsAddingCategory(false); } };
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in"><div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-800 overflow-hidden animate-slide-up"><div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900"><h2 className="text-lg font-bold text-slate-100">{initialData ? 'Modifica Prodotto' : 'Nuovo Prodotto'}</h2><button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X size={24} /></button></div><form onSubmit={handleSubmit} className="p-6 space-y-6"><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Nome Prodotto</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Latte" className="w-full text-xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 bg-transparent" autoFocus={!initialData} required /></div><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-2">Categoria</label><div className="flex flex-wrap gap-2">{categories.map(cat => ( <button key={cat} type="button" onClick={() => setCategory(cat)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${category === cat ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-indigo-500 hover:text-slate-200'}`}>{cat}</button> ))}{isAddingCategory ? ( <div className="flex items-center gap-1"><input ref={newCategoryInputRef} type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} onBlur={handleCreateCategory} onKeyDown={handleKeyDownCategory} placeholder="Nuova..." className="px-3 py-1.5 rounded-full text-xs font-medium border border-indigo-500 bg-slate-800 text-white outline-none w-24 placeholder-slate-500" /></div> ) : ( <button type="button" onClick={() => setIsAddingCategory(true)} className="px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-slate-600 text-slate-500 hover:border-slate-400 hover:text-slate-300 transition-all flex items-center gap-1"><Plus size={12} /> Nuova</button> )}</div></div><button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-500 transition-all flex justify-center gap-2">{initialData ? <Save size={20} /> : <Check size={20} />} {initialData ? 'Aggiorna' : 'Aggiungi'}</button></form></div></div>
+  );
+};
+
+const AddModal: React.FC<{isOpen: boolean, onClose: () => void, onSave: (amount: number, description: string, category: string, type: TransactionType, note: string, id?: string) => void, initialData?: Transaction | null, expenseCategories: string[], incomeCategories: string[], onAddCategory: (newCategory: string, type: TransactionType) => void}> = ({ isOpen, onClose, onSave, initialData, expenseCategories, incomeCategories, onAddCategory }) => {
+  const [type, setType] = useState<TransactionType>('expense'); const [amount, setAmount] = useState(''); const [description, setDescription] = useState(''); const [category, setCategory] = useState(''); const [note, setNote] = useState(''); const [isAddingCategory, setIsAddingCategory] = useState(false); const [newCategoryName, setNewCategoryName] = useState(''); const newCategoryInputRef = useRef<HTMLInputElement>(null);
+  const currentCategories = type === 'expense' ? expenseCategories : incomeCategories;
+  useEffect(() => { if (isOpen) { setIsAddingCategory(false); setNewCategoryName(''); if (initialData) { setType(initialData.type); setAmount(initialData.amount.toString()); setDescription(initialData.description); setCategory(initialData.category); setNote(initialData.note || ''); } else { setType('expense'); setAmount(''); setDescription(''); setNote(''); setCategory(expenseCategories[0] || ''); } } }, [isOpen, initialData, expenseCategories]);
+  useEffect(() => { if (isAddingCategory && newCategoryInputRef.current) newCategoryInputRef.current.focus(); }, [isAddingCategory]);
+  if (!isOpen) return null;
+  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); if (!amount || !description) return; onSave(parseFloat(amount), description, category || currentCategories[0], type, note, initialData?.id); onClose(); };
+  const handleCreateCategory = () => { if (newCategoryName.trim()) { onAddCategory(newCategoryName.trim(), type); setCategory(newCategoryName.trim()); setNewCategoryName(''); setIsAddingCategory(false); } else { setIsAddingCategory(false); } };
+  const handleKeyDownCategory = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateCategory(); } else if (e.key === 'Escape') { setIsAddingCategory(false); } };
+  const isEditing = !!initialData;
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in"><div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-800 overflow-hidden animate-slide-up max-h-[90vh] overflow-y-auto no-scrollbar"><div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900 sticky top-0 z-10"><h2 className="text-lg font-bold text-slate-100">{isEditing ? 'Modifica Transazione' : 'Nuova Transazione'}</h2><button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X size={24} /></button></div><form onSubmit={handleSubmit} className="p-6 space-y-6"><div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800"><button type="button" className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'expense' ? 'bg-slate-800 text-red-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`} onClick={() => { setType('expense'); setCategory(expenseCategories[0] || ''); setIsAddingCategory(false); }}>Uscita</button><button type="button" className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'income' ? 'bg-slate-800 text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`} onClick={() => { setType('income'); setCategory(incomeCategories[0] || ''); setIsAddingCategory(false); }}>Entrata</button></div><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Importo (€)</label><input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full text-4xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 bg-transparent" autoFocus={!isEditing} required /></div><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Descrizione</label><input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Es. Spesa settimanale" className="w-full p-3 bg-slate-950 border border-slate-800 text-slate-200 rounded-lg outline-none focus:border-indigo-500" required /></div><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Note</label><textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Dettagli extra..." className="w-full p-3 bg-slate-950 border border-slate-800 text-slate-200 rounded-lg outline-none focus:border-indigo-500 min-h-[80px] resize-none" /></div><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-2">Categoria</label><div className="flex flex-wrap gap-2">{currentCategories.map(cat => ( <button key={cat} type="button" onClick={() => setCategory(cat)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${category === cat ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-indigo-500 hover:text-slate-200'}`}>{cat}</button> ))}{isAddingCategory ? ( <div className="flex items-center gap-1"><input ref={newCategoryInputRef} type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} onBlur={handleCreateCategory} onKeyDown={handleKeyDownCategory} placeholder="Nuova..." className="px-3 py-1.5 rounded-full text-xs font-medium border border-indigo-500 bg-slate-800 text-white outline-none w-24 placeholder-slate-500" /></div> ) : ( <button type="button" onClick={() => setIsAddingCategory(true)} className="px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-slate-600 text-slate-500 hover:border-slate-400 hover:text-slate-300 transition-all flex items-center gap-1"><Plus size={12} /> Nuova</button> )}</div></div><button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-500 transition-all flex justify-center gap-2">{isEditing ? <Save size={20} /> : <Check size={20} />} {isEditing ? 'Aggiorna' : 'Salva'}</button></form></div></div>
+  );
+};
+
+// --- APP COMPONENT ---
+
 function App() {
   // State Settings
   const [userSettings, setUserSettings] = useState<UserSettings>(() => {
     const saved = localStorage.getItem('spesesmart_settings');
-    // Default includes empty apiKey
     return saved ? JSON.parse(saved) : { userName: '', soundEnabled: true, hapticEnabled: true, apiKey: '' };
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -872,7 +971,6 @@ function App() {
   const [alerts, setAlerts] = useState<Alert[]>(() => {
     const saved = localStorage.getItem('spesesmart_alerts');
     const parsed = saved ? JSON.parse(saved) : [];
-    // Migrate old alerts to have completed field
     return parsed.map((a: any) => ({ ...a, completed: a.completed || false }));
   });
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
@@ -924,7 +1022,6 @@ function App() {
         const newAlerts = prev.map(a => {
           if (!a.notified && !a.completed && new Date(a.datetime) <= now) {
             hasChanges = true;
-            // Trigger Notification
             playNotificationSound(userSettings.soundEnabled);
             if (Notification.permission === 'granted') {
               new Notification("Avviso Scaduto: " + a.title, { body: "Priorità: " + a.priority });
@@ -935,7 +1032,7 @@ function App() {
         });
         return hasChanges ? newAlerts : prev;
       });
-    }, 30000); // Check every 30s
+    }, 30000); 
 
     return () => clearInterval(interval);
   }, [userSettings.soundEnabled]);
@@ -1065,7 +1162,7 @@ function App() {
     const newDate = new Date(currentDate); newDate.setMonth(newDate.getMonth() + delta);
     setCurrentDate(newDate); setAiAdvice(null); setSelectedCategory('Tutte');
   };
-  // Fix: Removed reference to undefined 'newDate' and correctly set date from input
+
   const handleDateSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.value) {
       const [year, month] = e.target.value.split('-');
@@ -1074,14 +1171,16 @@ function App() {
       setCurrentDate(new Date(parseInt(year), parseInt(month) - 1, 1));
     }
   };
+
   const handleAiAnalysis = async () => {
     setLoadingAi(true);
     const monthName = currentDate.toLocaleString('it-IT', { month: 'long', year: 'numeric' });
-    // Pass the user's API Key to the service
     const advice = await getFinancialAdvice(monthlyTransactions, monthName, userSettings.apiKey);
     setAiAdvice(advice); setLoadingAi(false);
   };
+
   const onPieEnter = (_: any, index: number) => setActiveIndex(index);
+
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault(); if (!newTaskText.trim()) return;
     setTasks(prev => [{ id: crypto.randomUUID(), text: newTaskText.trim(), completed: false, createdAt: Date.now() }, ...prev]);
@@ -1099,8 +1198,8 @@ function App() {
   const handleEditShoppingItem = (item: ShoppingItem) => { setEditingShoppingItem(item); setIsShoppingModalOpen(true); };
   const handleOpenShoppingModal = () => { setEditingShoppingItem(null); setIsShoppingModalOpen(true); };
 
-  // Render Logic
   const currentMonthValue = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+  
   const renderActiveShape = (props: any) => {
     const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload, value } = props;
     return (
@@ -1381,115 +1480,6 @@ function App() {
     </div>
   );
 }
-
-// --- RESTORED COMPONENTS FOR COMPLETENESS (TaskItem, ShoppingListItem, StatsCard, ShoppingModal, AddModal) ---
-// These are needed because we are outputting the full file.
-
-const TaskItem: React.FC<{task: Task, onToggle: (id: string) => void, onDelete: (id: string) => void, hapticEnabled: boolean}> = ({ task, onToggle, onDelete, hapticEnabled }) => {
-  const [startX, setStartX] = useState<number | null>(null);
-  const [currentX, setCurrentX] = useState<number>(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const DELETE_THRESHOLD = 150;
-
-  useEffect(() => { return () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current); }; }, []);
-
-  const handleTouchStart = (e: React.TouchEvent) => { if (isConfirmingDelete) return; setStartX(e.touches[0].clientX); setIsDragging(true); };
-  const handleTouchMove = (e: React.TouchEvent) => { if (startX === null || isDeleting || isConfirmingDelete) return; const diff = e.touches[0].clientX - startX; if (diff < 0) setCurrentX(diff); else setCurrentX(diff * 0.2); };
-  const handleTouchEnd = () => handleSwipeEnd();
-  const handleMouseDown = (e: React.MouseEvent) => { if (isConfirmingDelete) return; setStartX(e.clientX); setIsDragging(true); };
-  const handleMouseMove = (e: React.MouseEvent) => { if (!isDragging || startX === null || isDeleting || isConfirmingDelete) return; e.preventDefault(); const diff = e.clientX - startX; if (diff < 0) setCurrentX(diff); else setCurrentX(diff * 0.2); };
-  const handleMouseUp = () => handleSwipeEnd();
-  const handleMouseLeave = () => { if (isDragging) handleSwipeEnd(); };
-  const handleSwipeEnd = () => { setIsDragging(false); if (currentX < -DELETE_THRESHOLD) { handleStartDeleteSequence(); } else { setCurrentX(0); } setStartX(null); };
-  const handleStartDeleteSequence = () => { if (hapticEnabled && navigator.vibrate) navigator.vibrate(50); setIsConfirmingDelete(true); setCurrentX(0); deleteTimerRef.current = setTimeout(() => { setIsDeleting(true); setTimeout(() => onDelete(task.id), 300); }, 3000); };
-  const handleUndo = () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current); setIsConfirmingDelete(false); setCurrentX(0); };
-
-  if (isDeleting) return <div className="h-[88px] mb-3 w-full bg-transparent transition-all duration-300 opacity-0 transform -translate-x-full"></div>;
-  if (isConfirmingDelete) return ( <div className="relative mb-3 h-[88px] w-full bg-red-950/40 border border-red-900/50 rounded-xl flex items-center justify-between px-6 animate-fade-in overflow-hidden"> <div className="absolute bottom-0 left-0 h-1 bg-red-600/50 w-full animate-[shrink_3s_linear_forwards]" style={{ animationName: 'shrinkWidth' }}></div> <style>{`@keyframes shrinkWidth { from { width: 100%; } to { width: 0%; } }`}</style> <div className="flex items-center gap-2 text-red-400"> <Trash2 size={20} /> <span className="font-medium text-sm">Eliminato</span> </div> <button onClick={handleUndo} className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm border border-slate-700 transition-colors z-10"> <RotateCcw size={16} /> Annulla </button> </div> );
-
-  return (
-    <div className="relative mb-3 w-full h-[88px] overflow-hidden rounded-xl select-none touch-pan-y" onMouseLeave={handleMouseLeave} onMouseUp={handleMouseUp} style={{ touchAction: 'pan-y' }} onClick={() => { if (!isDragging && !isDeleting && !isConfirmingDelete) onToggle(task.id); }}>
-      <div className={`absolute inset-0 flex items-center justify-end px-6 transition-colors ${currentX < 0 ? 'bg-red-600' : 'bg-slate-900'}`}><div className="flex items-center gap-2 text-white font-bold transition-opacity duration-200" style={{ opacity: currentX < -30 ? 1 : 0 }}><span>Elimina</span> <Trash2 size={24} /></div></div>
-      <div className={`relative h-full bg-slate-900 flex items-center gap-4 p-4 border border-slate-800 rounded-xl transition-all duration-300 ${task.completed ? 'opacity-60 bg-slate-950/50 border-slate-900' : ''}`} style={{ transform: `translateX(${currentX}px)`, transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)' }} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}>
-        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors pointer-events-none ${task.completed ? 'bg-indigo-600 border-indigo-600' : 'border-slate-500'}`}>{task.completed && <Check size={14} className="text-white" strokeWidth={3} />}</div>
-        <span className={`flex-1 font-medium pointer-events-none transition-all ${task.completed ? 'text-slate-600 line-through' : 'text-slate-200'}`}>{task.text}</span>
-      </div>
-    </div>
-  );
-};
-
-const ShoppingListItem: React.FC<{item: ShoppingItem, onToggle: (id: string) => void, onDelete: (id: string) => void, onEdit: (item: ShoppingItem) => void, hapticEnabled: boolean}> = ({ item, onToggle, onDelete, onEdit, hapticEnabled }) => {
-  const [startX, setStartX] = useState<number | null>(null);
-  const [currentX, setCurrentX] = useState<number>(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const SWIPE_THRESHOLD = 70; const DELETE_THRESHOLD = 150; const MAX_SWIPE_RIGHT = 100;
-
-  useEffect(() => { return () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current); }; }, []);
-
-  const handleTouchStart = (e: React.TouchEvent) => { if (isConfirmingDelete) return; setStartX(e.touches[0].clientX); setIsDragging(true); };
-  const handleTouchMove = (e: React.TouchEvent) => { if (startX === null || isDeleting || isConfirmingDelete) return; const diff = e.touches[0].clientX - startX; if (diff > MAX_SWIPE_RIGHT) setCurrentX(MAX_SWIPE_RIGHT + (diff - MAX_SWIPE_RIGHT) * 0.2); else setCurrentX(diff); };
-  const handleTouchEnd = () => handleSwipeEnd();
-  const handleMouseDown = (e: React.MouseEvent) => { if (isConfirmingDelete) return; setStartX(e.clientX); setIsDragging(true); };
-  const handleMouseMove = (e: React.MouseEvent) => { if (!isDragging || startX === null || isDeleting || isConfirmingDelete) return; e.preventDefault(); const diff = e.clientX - startX; if (diff > MAX_SWIPE_RIGHT) setCurrentX(MAX_SWIPE_RIGHT + (diff - MAX_SWIPE_RIGHT) * 0.2); else setCurrentX(diff); };
-  const handleMouseUp = () => handleSwipeEnd();
-  const handleMouseLeave = () => { if (isDragging) handleSwipeEnd(); };
-  const handleSwipeEnd = () => { setIsDragging(false); if (currentX > SWIPE_THRESHOLD) { onEdit(item); setCurrentX(0); } else if (currentX < -DELETE_THRESHOLD) { handleStartDeleteSequence(); } else { setCurrentX(0); } setStartX(null); };
-  const handleStartDeleteSequence = () => { if (hapticEnabled && navigator.vibrate) navigator.vibrate(50); setIsConfirmingDelete(true); setCurrentX(0); deleteTimerRef.current = setTimeout(() => { setIsDeleting(true); setTimeout(() => onDelete(item.id), 300); }, 3000); };
-  const handleUndo = () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current); setIsConfirmingDelete(false); setCurrentX(0); };
-  const getSwipeBackground = () => { if (currentX > 0) return 'bg-indigo-600'; if (currentX < 0) return 'bg-red-600'; return 'bg-slate-900'; };
-
-  if (isDeleting) return <div className="h-[72px] mb-3 w-full bg-transparent transition-all duration-300 opacity-0 transform -translate-x-full"></div>;
-  if (isConfirmingDelete) return ( <div className="relative mb-3 h-[72px] w-full bg-red-950/40 border border-red-900/50 rounded-xl flex items-center justify-between px-6 animate-fade-in overflow-hidden"> <div className="absolute bottom-0 left-0 h-1 bg-red-600/50 w-full animate-[shrink_3s_linear_forwards]" style={{ animationName: 'shrinkWidth' }}></div> <style>{`@keyframes shrinkWidth { from { width: 100%; } to { width: 0%; } }`}</style> <div className="flex items-center gap-2 text-red-400"> <Trash2 size={20} /> <span className="font-medium text-sm">Eliminato</span> </div> <button onClick={handleUndo} className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm border border-slate-700 transition-colors z-10"> <RotateCcw size={16} /> Annulla </button> </div> );
-
-  return (
-    <div className="relative mb-3 w-full h-[72px] overflow-hidden rounded-xl select-none touch-pan-y" onMouseLeave={handleMouseLeave} onMouseUp={handleMouseUp} style={{ touchAction: 'pan-y' }} onClick={() => { if (!isDragging && !isDeleting && !isConfirmingDelete) onToggle(item.id); }}>
-      <div className={`absolute inset-0 flex items-center justify-between px-6 transition-colors ${getSwipeBackground()}`}><div className="flex items-center gap-2 text-white font-bold transition-opacity duration-200" style={{ opacity: currentX > 30 ? 1 : 0 }}><Edit2 size={24} /> <span>Modifica</span></div><div className="flex items-center gap-2 text-white font-bold transition-opacity duration-200" style={{ opacity: currentX < -30 ? 1 : 0 }}><span>Elimina</span> <Trash2 size={24} /></div></div>
-      <div className={`relative h-full bg-slate-900 flex items-center justify-between p-4 border border-slate-800 rounded-xl transition-transform ease-out ${item.completed ? 'opacity-50' : ''}`} style={{ transform: `translateX(${currentX}px)`, transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)' }} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}>
-        <div className="flex items-center gap-4 pointer-events-none"><div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${item.completed ? 'bg-emerald-600 border-emerald-600' : 'border-slate-500'}`}>{item.completed && <Check size={14} className="text-white" strokeWidth={3} />}</div><div className="flex flex-col"><span className={`font-medium ${item.completed ? 'text-slate-500 line-through' : 'text-slate-200'}`}>{item.name}</span><span className="text-[10px] text-slate-500 uppercase tracking-wide">{item.category}</span></div></div>
-      </div>
-    </div>
-  );
-};
-
-const StatsCard: React.FC<{label: string, amount: number, type: 'balance' | 'income' | 'expense'}> = ({ label, amount, type }) => {
-  let colorClass = "text-slate-200"; let bgClass = "bg-slate-900"; let borderClass = "border-slate-800";
-  if (type === 'income') { colorClass = "text-emerald-400"; bgClass = "bg-emerald-950/30"; borderClass = "border-emerald-900/30"; } else if (type === 'expense') { colorClass = "text-red-400"; bgClass = "bg-red-950/30"; borderClass = "border-red-900/30"; } else { colorClass = "text-indigo-400"; bgClass = "bg-slate-900"; }
-  return ( <div className={`flex-1 p-4 rounded-2xl border shadow-sm flex flex-col items-center justify-center ${bgClass} ${borderClass}`}><span className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">{label}</span><span className={`text-xl sm:text-2xl font-bold truncate max-w-full ${colorClass}`}>{amount.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</span></div> );
-};
-
-const ShoppingModal: React.FC<{isOpen: boolean, onClose: () => void, onSave: (name: string, category: string, id?: string) => void, initialData?: ShoppingItem | null, categories: string[], onAddCategory: (newCategory: string) => void}> = ({ isOpen, onClose, onSave, initialData, categories, onAddCategory }) => {
-  const [name, setName] = useState(''); const [category, setCategory] = useState(''); const [isAddingCategory, setIsAddingCategory] = useState(false); const [newCategoryName, setNewCategoryName] = useState(''); const newCategoryInputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (isOpen) { setIsAddingCategory(false); setNewCategoryName(''); if (initialData) { setName(initialData.name); setCategory(initialData.category); } else { setName(''); setCategory(categories[0] || ''); } } }, [isOpen, initialData, categories]);
-  useEffect(() => { if (isAddingCategory && newCategoryInputRef.current) newCategoryInputRef.current.focus(); }, [isAddingCategory]);
-  if (!isOpen) return null;
-  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); if (!name.trim()) return; onSave(name, category || categories[0], initialData?.id); onClose(); };
-  const handleCreateCategory = () => { if (newCategoryName.trim()) { onAddCategory(newCategoryName.trim()); setCategory(newCategoryName.trim()); setNewCategoryName(''); setIsAddingCategory(false); } else { setIsAddingCategory(false); } };
-  const handleKeyDownCategory = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateCategory(); } else if (e.key === 'Escape') { setIsAddingCategory(false); } };
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in"><div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-800 overflow-hidden animate-slide-up"><div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900"><h2 className="text-lg font-bold text-slate-100">{initialData ? 'Modifica Prodotto' : 'Nuovo Prodotto'}</h2><button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X size={24} /></button></div><form onSubmit={handleSubmit} className="p-6 space-y-6"><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Nome Prodotto</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Latte" className="w-full text-xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 bg-transparent" autoFocus={!initialData} required /></div><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-2">Categoria</label><div className="flex flex-wrap gap-2">{categories.map(cat => ( <button key={cat} type="button" onClick={() => setCategory(cat)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${category === cat ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-indigo-500 hover:text-slate-200'}`}>{cat}</button> ))}{isAddingCategory ? ( <div className="flex items-center gap-1"><input ref={newCategoryInputRef} type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} onBlur={handleCreateCategory} onKeyDown={handleKeyDownCategory} placeholder="Nuova..." className="px-3 py-1.5 rounded-full text-xs font-medium border border-indigo-500 bg-slate-800 text-white outline-none w-24 placeholder-slate-500" /></div> ) : ( <button type="button" onClick={() => setIsAddingCategory(true)} className="px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-slate-600 text-slate-500 hover:border-slate-400 hover:text-slate-300 transition-all flex items-center gap-1"><Plus size={12} /> Nuova</button> )}</div></div><button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-500 transition-all flex justify-center gap-2">{initialData ? <Save size={20} /> : <Check size={20} />} {initialData ? 'Aggiorna' : 'Aggiungi'}</button></form></div></div>
-  );
-};
-
-const AddModal: React.FC<{isOpen: boolean, onClose: () => void, onSave: (amount: number, description: string, category: string, type: TransactionType, note: string, id?: string) => void, initialData?: Transaction | null, expenseCategories: string[], incomeCategories: string[], onAddCategory: (newCategory: string, type: TransactionType) => void}> = ({ isOpen, onClose, onSave, initialData, expenseCategories, incomeCategories, onAddCategory }) => {
-  const [type, setType] = useState<TransactionType>('expense'); const [amount, setAmount] = useState(''); const [description, setDescription] = useState(''); const [category, setCategory] = useState(''); const [note, setNote] = useState(''); const [isAddingCategory, setIsAddingCategory] = useState(false); const [newCategoryName, setNewCategoryName] = useState(''); const newCategoryInputRef = useRef<HTMLInputElement>(null);
-  const currentCategories = type === 'expense' ? expenseCategories : incomeCategories;
-  useEffect(() => { if (isOpen) { setIsAddingCategory(false); setNewCategoryName(''); if (initialData) { setType(initialData.type); setAmount(initialData.amount.toString()); setDescription(initialData.description); setCategory(initialData.category); setNote(initialData.note || ''); } else { setType('expense'); setAmount(''); setDescription(''); setNote(''); setCategory(expenseCategories[0] || ''); } } }, [isOpen, initialData, expenseCategories]);
-  useEffect(() => { if (isAddingCategory && newCategoryInputRef.current) newCategoryInputRef.current.focus(); }, [isAddingCategory]);
-  if (!isOpen) return null;
-  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); if (!amount || !description) return; onSave(parseFloat(amount), description, category || currentCategories[0], type, note, initialData?.id); onClose(); };
-  const handleCreateCategory = () => { if (newCategoryName.trim()) { onAddCategory(newCategoryName.trim(), type); setCategory(newCategoryName.trim()); setNewCategoryName(''); setIsAddingCategory(false); } else { setIsAddingCategory(false); } };
-  const handleKeyDownCategory = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateCategory(); } else if (e.key === 'Escape') { setIsAddingCategory(false); } };
-  const isEditing = !!initialData;
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in"><div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-800 overflow-hidden animate-slide-up max-h-[90vh] overflow-y-auto no-scrollbar"><div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900 sticky top-0 z-10"><h2 className="text-lg font-bold text-slate-100">{isEditing ? 'Modifica Transazione' : 'Nuova Transazione'}</h2><button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X size={24} /></button></div><form onSubmit={handleSubmit} className="p-6 space-y-6"><div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800"><button type="button" className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'expense' ? 'bg-slate-800 text-red-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`} onClick={() => { setType('expense'); setCategory(expenseCategories[0] || ''); setIsAddingCategory(false); }}>Uscita</button><button type="button" className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'income' ? 'bg-slate-800 text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`} onClick={() => { setType('income'); setCategory(incomeCategories[0] || ''); setIsAddingCategory(false); }}>Entrata</button></div><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Importo (€)</label><input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full text-4xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 bg-transparent" autoFocus={!isEditing} required /></div><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Descrizione</label><input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Es. Spesa settimanale" className="w-full p-3 bg-slate-950 border border-slate-800 text-slate-200 rounded-lg outline-none focus:border-indigo-500" required /></div><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Note</label><textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Dettagli extra..." className="w-full p-3 bg-slate-950 border border-slate-800 text-slate-200 rounded-lg outline-none focus:border-indigo-500 min-h-[80px] resize-none" /></div><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-2">Categoria</label><div className="flex flex-wrap gap-2">{currentCategories.map(cat => ( <button key={cat} type="button" onClick={() => setCategory(cat)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${category === cat ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-indigo-500 hover:text-slate-200'}`}>{cat}</button> ))}{isAddingCategory ? ( <div className="flex items-center gap-1"><input ref={newCategoryInputRef} type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} onBlur={handleCreateCategory} onKeyDown={handleKeyDownCategory} placeholder="Nuova..." className="px-3 py-1.5 rounded-full text-xs font-medium border border-indigo-500 bg-slate-800 text-white outline-none w-24 placeholder-slate-500" /></div> ) : ( <button type="button" onClick={() => setIsAddingCategory(true)} className="px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-slate-600 text-slate-500 hover:border-slate-400 hover:text-slate-300 transition-all flex items-center gap-1"><Plus size={12} /> Nuova</button> )}</div></div><button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-500 transition-all flex justify-center gap-2">{isEditing ? <Save size={20} /> : <Check size={20} />} {isEditing ? 'Aggiorna' : 'Salva'}</button></form></div></div>
-  );
-};
 
 const root = createRoot(document.getElementById('root')!);
 root.render(<App />);
