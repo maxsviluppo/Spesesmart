@@ -4,7 +4,7 @@ import {
   Plus, Home, ShoppingCart, ListTodo, Bell, BarChart3, 
   Wallet, PieChart as PieChartIcon, ArrowRight, Sparkles, CheckCircle2, Circle, Trash2, AlertTriangle, Info,
   ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut, Calendar, Clock, User, Key, Lock, ExternalLink, ChevronDown, ChevronUp, Mail,
-  Sun, Cloud, CloudRain, CloudSnow, CloudLightning, MapPin, Droplets, ThermometerSun, Smartphone, Layout, Volume2
+  Sun, Cloud, CloudRain, CloudSnow, CloudLightning, MapPin, Droplets, ThermometerSun, Smartphone, Layout, Volume2, Eye, EyeOff, History
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
@@ -355,16 +355,71 @@ const SwipeableItem: React.FC<SwipeableItemProps> = ({
 };
 
 // StatsCard
-const StatsCard = ({ label, amount, type }: { label: string, amount: number, type: 'balance'|'income'|'expense' }) => {
+const StatsCard = ({ label, amount, type, onClick, isHidden }: { label: string, amount: number, type: 'balance'|'income'|'expense', onClick?: () => void, isHidden?: boolean }) => {
   let colors = type === 'income' ? "text-emerald-400 bg-emerald-950/30 border-emerald-900/30" : 
                type === 'expense' ? "text-red-400 bg-red-950/30 border-red-900/30" : 
                "text-indigo-400 bg-slate-900 border-slate-800";
   return (
-    <div className={`flex-1 p-3 rounded-2xl border shadow-sm flex flex-col items-center justify-center ${colors}`}>
-      <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">{label}</span>
-      <span className="text-lg sm:text-xl font-bold truncate max-w-full">{(Number(amount) || 0).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</span>
+    <div onClick={onClick} className={`flex-1 p-3 rounded-2xl border shadow-sm flex flex-col items-center justify-center ${colors} relative ${onClick ? 'cursor-pointer active:scale-95 transition-transform' : ''}`}>
+      <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
+          {label} 
+          {type === 'balance' && (isHidden ? <EyeOff size={10} className="text-slate-500"/> : <Eye size={10} className="text-slate-500"/>)}
+      </span>
+      <span className="text-lg sm:text-xl font-bold truncate max-w-full">
+          {isHidden ? '••••••' : (Number(amount) || 0).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+      </span>
     </div>
   );
+};
+
+// History Modal
+const HistoryModal = ({ isOpen, onClose, transactions, type }: { isOpen: boolean, onClose: () => void, transactions: Transaction[], type: 'income'|'expense' }) => {
+    if (!isOpen) return null;
+
+    const filtered = transactions.filter(t => t.type === type).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    // Group by Month Year
+    const grouped = filtered.reduce((acc, t) => {
+        const d = new Date(t.date);
+        const key = d.toLocaleString('it-IT', { month: 'long', year: 'numeric' });
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(t);
+        return acc;
+    }, {} as Record<string, Transaction[]>);
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-slate-900 w-full max-w-md rounded-2xl border border-slate-800 overflow-hidden animate-slide-up h-[80vh] flex flex-col">
+                <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900">
+                    <h2 className={`text-lg font-bold flex items-center gap-2 ${type === 'income' ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <History size={20}/> Storico {type === 'income' ? 'Entrate' : 'Uscite'}
+                    </h2>
+                    <button onClick={onClose}><X size={24} className="text-slate-400" /></button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                    {Object.entries(grouped).map(([period, items]) => (
+                        <div key={period}>
+                            <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 sticky top-0 bg-slate-900 py-2 border-b border-slate-800">{period}</h3>
+                            <div className="space-y-2">
+                                {items.map(t => (
+                                    <div key={t.id} className="flex justify-between items-center p-3 rounded-xl bg-slate-950 border border-slate-800">
+                                        <div>
+                                            <p className="font-medium text-slate-200 text-sm">{t.description}</p>
+                                            <p className="text-[10px] text-slate-500">{new Date(t.date).toLocaleDateString()} • {t.category}</p>
+                                        </div>
+                                        <span className={`font-bold ${type === 'income' ? 'text-emerald-400' : 'text-red-400'}`}>
+                                            €{t.amount.toFixed(2)}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                    {filtered.length === 0 && <p className="text-center text-slate-500 py-10">Nessuna transazione trovata.</p>}
+                </div>
+            </div>
+        </div>
+    );
 };
 
 // AddModal
@@ -598,6 +653,12 @@ const App = () => {
   const [alarmVolume, setAlarmVolume] = useState(() => parseFloat(localStorage.getItem('alarmVolume') || '0.5'));
   const [activeTab, setActiveTab] = useState<'home' | 'shopping' | 'doit' | 'alerts' | 'reports'>(startUpTab as any);
   
+  // Balance Visibility
+  const [isBalanceHidden, setIsBalanceHidden] = useState(() => localStorage.getItem('isBalanceHidden') === 'true');
+
+  // History Modals
+  const [historyType, setHistoryType] = useState<'income'|'expense'|null>(null);
+  
   // State
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     try {
@@ -682,6 +743,7 @@ const App = () => {
   useEffect(() => { localStorage.setItem('userName', userName); }, [userName]);
   useEffect(() => { localStorage.setItem('userApiKey', userApiKey); }, [userApiKey]);
   useEffect(() => { localStorage.setItem('alarmVolume', alarmVolume.toString()); }, [alarmVolume]);
+  useEffect(() => { localStorage.setItem('isBalanceHidden', String(isBalanceHidden)); }, [isBalanceHidden]);
 
   const handleSaveSettings = () => {
     localStorage.setItem('startUpTab', startUpTab);
@@ -700,16 +762,18 @@ const App = () => {
 
         osc.connect(gain);
         gain.connect(ctx.destination);
+        
+        const now = ctx.currentTime;
 
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(880, ctx.currentTime);
-        osc.frequency.linearRampToValueAtTime(440, ctx.currentTime + 0.3);
+        osc.frequency.setValueAtTime(880, now);
+        osc.frequency.linearRampToValueAtTime(440, now + 0.3);
 
-        gain.gain.setValueAtTime(vol, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+        gain.gain.setValueAtTime(vol, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
 
         osc.start();
-        osc.stop(ctx.currentTime + 0.5);
+        osc.stop(now + 0.5);
     } catch (e) {
         console.error("Audio play error", e);
     }
@@ -719,8 +783,8 @@ const App = () => {
   const monthlyStats = useMemo(() => {
     const now = new Date();
     const current = transactions.filter(t => new Date(t.date).getMonth() === now.getMonth() && new Date(t.date).getFullYear() === now.getFullYear());
-    const inc = current.filter(t => t.type === 'income').reduce((acc: number, t) => acc + (Number(t.amount)||0), 0);
-    const exp = current.filter(t => t.type === 'expense').reduce((acc: number, t) => acc + (Number(t.amount)||0), 0);
+    const inc: number = current.filter(t => t.type === 'income').reduce((acc, t) => acc + (Number(t.amount)||0), 0);
+    const exp: number = current.filter(t => t.type === 'expense').reduce((acc, t) => acc + (Number(t.amount)||0), 0);
     return { totalIncome: inc, totalExpense: exp, balance: inc - exp };
   }, [transactions]);
 
@@ -986,13 +1050,13 @@ const App = () => {
                  </div>
                  
                  <div className="flex flex-col gap-3 w-full items-center">
-                    <div className="w-full">
-                        <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Data</label>
-                        <input type="date" value={newAlertDate} onChange={e => setNewAlertDate(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-sm text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500"/>
+                    <div className="w-full relative">
+                        <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 flex items-center gap-1"><Calendar size={12} className="text-cyan-400"/> Data</label>
+                        <input type="date" value={newAlertDate} onChange={e => setNewAlertDate(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-sm text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500 appearance-none"/>
                     </div>
-                    <div className="w-full">
-                        <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Ora</label>
-                        <input type="time" value={newAlertTime} onChange={e => setNewAlertTime(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-sm text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500"/>
+                    <div className="w-full relative">
+                        <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 flex items-center gap-1"><Clock size={12} className="text-cyan-400"/> Ora</label>
+                        <input type="time" value={newAlertTime} onChange={e => setNewAlertTime(e.target.value)} className="w-full bg-slate-950 border border-slate-700 text-sm text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500 appearance-none"/>
                     </div>
                  </div>
 
@@ -1094,13 +1158,16 @@ const App = () => {
         <header className="px-6 pt-12 pb-6 bg-gradient-to-b from-indigo-950/20 to-slate-950">
           <div className="flex justify-between items-start mb-6">
             <div>
-                <h1 className="text-2xl font-black text-cyan-400">Spese Smart</h1>
+                <h1 className="text-2xl font-black text-indigo-400">Spese Smart</h1>
                 {userName && <p className="text-xs text-indigo-400 font-medium">Ciao, {userName}</p>}
             </div>
             <button onClick={() => setIsSettingsOpen(true)} className="bg-slate-900 p-2 rounded-full border border-slate-800 text-slate-400 hover:text-white"><Settings size={20}/></button>
           </div>
-          <div className="flex gap-2 mb-2"><StatsCard label="Entrate" amount={monthlyStats.totalIncome} type="income"/><StatsCard label="Uscite" amount={monthlyStats.totalExpense} type="expense"/></div>
-          <StatsCard label="Saldo" amount={monthlyStats.balance} type="balance"/>
+          <div className="flex gap-2 mb-2">
+            <StatsCard label="Entrate" amount={monthlyStats.totalIncome} type="income" onClick={() => setHistoryType('income')}/>
+            <StatsCard label="Uscite" amount={monthlyStats.totalExpense} type="expense" onClick={() => setHistoryType('expense')}/>
+          </div>
+          <StatsCard label="Saldo" amount={monthlyStats.balance} type="balance" onClick={() => setIsBalanceHidden(!isBalanceHidden)} isHidden={isBalanceHidden}/>
         </header>
 
         <main className="px-4 space-y-6">{renderContent()}</main>
@@ -1127,6 +1194,7 @@ const App = () => {
         </nav>
 
         <AddModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onSave={handleSaveTrans} initialData={editingTransaction} expenseCategories={expenseCategories} incomeCategories={incomeCategories} onAddCategory={(c: string, t: any) => t === 'expense' ? setExpenseCategories([...expenseCategories, c]) : setIncomeCategories([...incomeCategories, c])} />
+        <HistoryModal isOpen={!!historyType} onClose={() => setHistoryType(null)} transactions={transactions} type={historyType || 'expense'} />
         <SettingsModal 
             isOpen={isSettingsOpen} 
             onClose={() => setIsSettingsOpen(false)} 
