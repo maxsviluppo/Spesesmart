@@ -3,14 +3,12 @@ import { createRoot } from 'react-dom/client';
 import { 
   Plus, 
   Wallet, 
-  BarChart3, 
   PieChart, 
   Sparkles,
   ChevronLeft,
   ChevronRight, 
   TrendingUp,
   Info,
-  CalendarDays,
   Filter,
   ArrowUpCircle, 
   ArrowDownCircle, 
@@ -20,15 +18,10 @@ import {
   Check, 
   Save,
   ListTodo,
-  CheckSquare,
-  Square,
   FileText,
-  ChevronDown,
-  ChevronUp,
   Mail,
   RotateCcw,
   ShoppingCart,
-  ShoppingBag,
   Bell,
   Clock,
   AlertCircle,
@@ -52,9 +45,8 @@ import {
   CheckCircle2,
   XCircle,
   Layout,
-  Smartphone,
   Mic,
-  MicOff
+  BarChart3
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -69,8 +61,7 @@ import {
   Line,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Legend
+  CartesianGrid
 } from 'recharts';
 import { GoogleGenAI } from "@google/genai";
 
@@ -323,7 +314,7 @@ const MicButton: React.FC<MicButtonProps> = ({ onResult, className = "" }) => {
     <button
       type="button"
       onClick={toggleListening}
-      className={`p-2 rounded-full transition-all duration-200 ${
+      className={`p-2 rounded-full transition-all duration-200 z-10 ${
         isListening 
           ? 'bg-red-500 text-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]' 
           : 'text-slate-400 hover:text-indigo-400 hover:bg-white/5'
@@ -1290,7 +1281,7 @@ const ShoppingModal: React.FC<{isOpen: boolean, onClose: () => void, onSave: (na
   const handleCreateCategory = () => { if (newCategoryName.trim()) { onAddCategory(newCategoryName.trim()); setCategory(newCategoryName.trim()); setNewCategoryName(''); setIsAddingCategory(false); } else { setIsAddingCategory(false); } };
   const handleKeyDownCategory = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateCategory(); } else if (e.key === 'Escape') { setIsAddingCategory(false); } };
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in"><div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-800 overflow-hidden animate-slide-up"><div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900"><h2 className="text-lg font-bold text-slate-100">{initialData ? 'Modifica Prodotto' : 'Nuovo Prodotto'}</h2><button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X size={24} /></button></div><form onSubmit={handleSubmit} className="p-6 space-y-6"><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Nome Prodotto</label><div className="relative"><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Latte" className="w-full text-xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 pr-10 bg-transparent" required /><MicButton onResult={(text) => setName(prev => prev ? prev + ' ' + text : text)} className="absolute right-0 top-1/2 -translate-y-1/2" /></div></div><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-2">Categoria</label><div className="flex flex-wrap gap-2">{categories.map(cat => ( <button key={cat} type="button" onClick={() => setCategory(cat)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${category === cat ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-indigo-500 hover:text-slate-200'}`}>{cat}</button> ))}{isAddingCategory ? ( <div className="flex items-center gap-1"><input ref={newCategoryInputRef} type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} onBlur={handleCreateCategory} onKeyDown={handleKeyDownCategory} placeholder="Nuova..." className="px-3 py-1.5 rounded-full text-xs font-medium border border-indigo-500 bg-slate-800 text-white outline-none w-24 placeholder-slate-500" /></div> ) : ( <button type="button" onClick={() => setIsAddingCategory(true)} className="px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-slate-600 text-slate-500 hover:border-slate-400 hover:text-slate-300 transition-all flex items-center gap-1"><Plus size={12} /> Nuova</button> )}</div></div><button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-500 transition-all flex justify-center gap-2">{initialData ? <Save size={20} /> : <Check size={20} />} {initialData ? 'Aggiorna' : 'Aggiungi'}</button></form></div></div>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in"><div className="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-800 overflow-hidden animate-slide-up"><div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900"><h2 className="text-lg font-bold text-slate-100">{initialData ? 'Modifica Prodotto' : 'Nuovo Prodotto'}</h2><button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X size={24} /></button></div><form onSubmit={handleSubmit} className="p-6 space-y-6"><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Nome Prodotto</label><div className="relative"><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Latte" className="w-full text-xl font-bold text-slate-100 placeholder-slate-700 outline-none border-b border-slate-700 focus:border-indigo-500 pb-2 pr-10 bg-transparent" required /><MicButton onResult={(text) => setName(prev => prev ? prev + ' ' + text : text)} className="absolute right-2 top-1/2 -translate-y-1/2 z-20" /></div></div><div><label className="block text-xs font-semibold text-slate-500 uppercase mb-2">Categoria</label><div className="flex flex-wrap gap-2">{categories.map(cat => ( <button key={cat} type="button" onClick={() => setCategory(cat)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${category === cat ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-indigo-500 hover:text-slate-200'}`}>{cat}</button> ))}{isAddingCategory ? ( <div className="flex items-center gap-1"><input ref={newCategoryInputRef} type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} onBlur={handleCreateCategory} onKeyDown={handleKeyDownCategory} placeholder="Nuova..." className="px-3 py-1.5 rounded-full text-xs font-medium border border-indigo-500 bg-slate-800 text-white outline-none w-24 placeholder-slate-500" /></div> ) : ( <button type="button" onClick={() => setIsAddingCategory(true)} className="px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-slate-600 text-slate-500 hover:border-slate-400 hover:text-slate-300 transition-all flex items-center gap-1"><Plus size={12} /> Nuova</button> )}</div></div><button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-500 transition-all flex justify-center gap-2">{initialData ? <Save size={20} /> : <Check size={20} />} {initialData ? 'Aggiorna' : 'Aggiungi'}</button></form></div></div>
   );
 };
 
@@ -1891,23 +1882,57 @@ function App() {
         </button>
       )}
 
+      {/* Bottom Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-[#0E1629]/90 backdrop-blur-xl border-t border-white/5 pb-6 pt-2 px-6 z-30">
+        <div className="flex justify-between items-center max-w-lg mx-auto">
+          <button 
+            onClick={() => setActiveTab('home')} 
+            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-300 ${activeTab === 'home' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            <Wallet size={24} strokeWidth={activeTab === 'home' ? 2.5 : 2} className={activeTab === 'home' ? 'drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]' : ''} />
+            <span className="text-[10px] font-bold">Home</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('shopping')} 
+            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-300 ${activeTab === 'shopping' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            <ShoppingCart size={24} strokeWidth={activeTab === 'shopping' ? 2.5 : 2} className={activeTab === 'shopping' ? 'drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]' : ''} />
+            <span className="text-[10px] font-bold">Spesa</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('doit')} 
+            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-300 ${activeTab === 'doit' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            <ListTodo size={24} strokeWidth={activeTab === 'doit' ? 2.5 : 2} className={activeTab === 'doit' ? 'drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]' : ''} />
+            <span className="text-[10px] font-bold">Do It</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('alerts')} 
+            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-300 ${activeTab === 'alerts' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            <Bell size={24} strokeWidth={activeTab === 'alerts' ? 2.5 : 2} className={activeTab === 'alerts' ? 'drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]' : ''} />
+            <span className="text-[10px] font-bold">Avvisi</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('reports')} 
+            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-300 ${activeTab === 'reports' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            <BarChart3 size={24} strokeWidth={activeTab === 'reports' ? 2.5 : 2} className={activeTab === 'reports' ? 'drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]' : ''} />
+            <span className="text-[10px] font-bold">Report</span>
+          </button>
+        </div>
+      </nav>
+
       {/* Modals */}
       <AddModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveTransaction} initialData={editingTransaction} expenseCategories={expenseCategories} incomeCategories={incomeCategories} onAddCategory={handleAddCategory} />
       <ShoppingModal isOpen={isShoppingModalOpen} onClose={() => setIsShoppingModalOpen(false)} onSave={handleSaveShoppingItem} initialData={editingShoppingItem} categories={shoppingCategories} onAddCategory={handleAddShoppingCategory} />
       <AlertModal isOpen={isAlertModalOpen} onClose={() => setIsAlertModalOpen(false)} onSave={handleSaveAlert} initialData={editingAlert} />
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={userSettings} onUpdateSettings={setUserSettings} onReset={handleResetData} onShowToast={showToast} />
       <TaskModal isOpen={isTaskModalOpen} onClose={() => setIsTaskModalOpen(false)} onSave={handleSaveTask} task={editingTask} />
-
-      {/* Nav */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-[#0E1629] border-t border-slate-800 pb-safe pt-2 px-4 h-20 sm:max-w-lg sm:mx-auto z-20">
-        <div className="flex justify-between items-center h-full pb-2">
-          <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center gap-1 transition-colors w-12 ${activeTab === 'home' ? 'text-indigo-400' : 'text-slate-600'}`}><Wallet size={20} /><span className="text-[9px] font-medium">Home</span></button>
-          <button onClick={() => setActiveTab('shopping')} className={`flex flex-col items-center gap-1 transition-colors w-12 ${activeTab === 'shopping' ? 'text-indigo-400' : 'text-slate-600'}`}><ShoppingCart size={20} /><span className="text-[9px] font-medium">Spesa</span></button>
-          <button onClick={() => setActiveTab('doit')} className={`flex flex-col items-center gap-1 transition-colors w-12 ${activeTab === 'doit' ? 'text-indigo-400' : 'text-slate-600'}`}><ListTodo size={20} /><span className="text-[9px] font-medium">Do It</span></button>
-          <button onClick={() => setActiveTab('alerts')} className={`flex flex-col items-center gap-1 transition-colors w-12 ${activeTab === 'alerts' ? 'text-indigo-400' : 'text-slate-600'}`}><Bell size={20} /><span className="text-[9px] font-medium">Avvisi</span></button>
-          <button onClick={() => setActiveTab('reports')} className={`flex flex-col items-center gap-1 transition-colors w-12 ${activeTab === 'reports' ? 'text-indigo-400' : 'text-slate-600'}`}><BarChart3 size={20} /><span className="text-[9px] font-medium">Report</span></button>
-        </div>
-      </nav>
     </div>
   );
 }
