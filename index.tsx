@@ -7,7 +7,7 @@ import {
   PieChart, 
   Sparkles,
   ChevronLeft,
-  ChevronRight,
+  ChevronRight, 
   TrendingUp,
   Info,
   CalendarDays,
@@ -25,7 +25,8 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
-  Mail
+  Mail,
+  RotateCcw
 } from 'lucide-react';
 import { 
   PieChart as RePieChart, 
@@ -150,6 +151,10 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
   const [isDeleting, setIsDeleting] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   
+  // Undo State
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
   // Note editing state
   const [localNote, setLocalNote] = useState(transaction.note || '');
   const itemRef = useRef<HTMLDivElement>(null);
@@ -159,6 +164,13 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
     setLocalNote(transaction.note || '');
   }, [transaction.note]);
 
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+    };
+  }, []);
+
   // Constants for swipe
   const SWIPE_THRESHOLD = 70; 
   const DELETE_THRESHOLD = 150;
@@ -167,35 +179,36 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
 
   // Auto-swipe hint animation
   useEffect(() => {
-    if (!isFirst || isDeleting) return;
+    if (!isFirst || isDeleting || isConfirmingDelete) return;
 
     const interval = setInterval(() => {
-      if (isDragging || isDeleting || isExpanded) return; 
+      if (isDragging || isDeleting || isExpanded || isConfirmingDelete) return; 
 
       // Hint sequence
       setCurrentX(-40);
       
       setTimeout(() => {
-        if (!isDragging && !isDeleting) setCurrentX(40);
+        if (!isDragging && !isDeleting && !isConfirmingDelete) setCurrentX(40);
       }, 400);
 
       setTimeout(() => {
-        if (!isDragging && !isDeleting) setCurrentX(0);
+        if (!isDragging && !isDeleting && !isConfirmingDelete) setCurrentX(0);
       }, 800);
 
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [isFirst, isDragging, isDeleting, isExpanded]);
+  }, [isFirst, isDragging, isDeleting, isExpanded, isConfirmingDelete]);
 
   // Touch Handlers
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (isConfirmingDelete) return; // Disable swipe when in undo mode
     setStartX(e.touches[0].clientX);
     setIsDragging(true);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (startX === null || isDeleting) return;
+    if (startX === null || isDeleting || isConfirmingDelete) return;
     const x = e.touches[0].clientX;
     const diff = x - startX;
     
@@ -213,12 +226,13 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
 
   // Mouse Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (isConfirmingDelete) return;
     setStartX(e.clientX);
     setIsDragging(true);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || startX === null || isDeleting) return;
+    if (!isDragging || startX === null || isDeleting || isConfirmingDelete) return;
     e.preventDefault(); 
     
     const x = e.clientX;
@@ -255,20 +269,40 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
       onEdit(transaction);
       setCurrentX(0); 
     } else if (currentX < -DELETE_THRESHOLD) {
-      // Swipe Left -> Full Delete
-      setIsDeleting(true);
-      setCurrentX(-window.innerWidth); // Animate completely off screen
-      
-      // Haptic feedback
-      if (navigator.vibrate) navigator.vibrate(50);
-
-      // Wait for animation then delete
-      setTimeout(() => onDelete(transaction.id), 300);
+      // Swipe Left -> TRIGGER UNDO MODE instead of instant delete
+      handleStartDeleteSequence();
     } else {
       // Snap back if threshold not met
       setCurrentX(0);
     }
     setStartX(null);
+  };
+
+  const handleStartDeleteSequence = () => {
+      // Haptic feedback
+      if (navigator.vibrate) navigator.vibrate(50);
+      
+      // Enter "Undo" mode
+      setIsConfirmingDelete(true);
+      setCurrentX(0); // Snap visually to center to show the red bar
+
+      // Set timer for actual deletion
+      deleteTimerRef.current = setTimeout(() => {
+          performFinalDelete();
+      }, 3000); // 3 seconds to undo
+  };
+
+  const performFinalDelete = () => {
+      setIsDeleting(true); // Exit animation
+      // Actually delete from parent
+      setTimeout(() => onDelete(transaction.id), 300);
+  };
+
+  const handleUndo = () => {
+      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+      setIsConfirmingDelete(false);
+      // Reset state
+      setCurrentX(0);
   };
 
   const handleSaveNote = () => {
@@ -284,10 +318,40 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
     return 'bg-slate-900';
   };
 
-  if (isDeleting && Math.abs(currentX) >= window.innerWidth) {
-      return <div className="h-[88px] mb-3 w-full"></div>;
+  if (isDeleting) {
+      return <div className="h-[88px] mb-3 w-full bg-transparent transition-all duration-300 opacity-0 transform -translate-x-full"></div>;
   }
 
+  // --- UNDO VIEW ---
+  if (isConfirmingDelete) {
+    return (
+      <div className="relative mb-3 h-[88px] w-full bg-red-950/40 border border-red-900/50 rounded-xl flex items-center justify-between px-6 animate-fade-in overflow-hidden">
+        {/* Progress bar background (optional visual cue) */}
+        <div className="absolute bottom-0 left-0 h-1 bg-red-600/50 w-full animate-[shrink_3s_linear_forwards] origin-left" style={{ animationName: 'shrinkWidth' }}></div>
+        <style>{`
+          @keyframes shrinkWidth {
+            from { width: 100%; }
+            to { width: 0%; }
+          }
+        `}</style>
+
+        <div className="flex items-center gap-2 text-red-400">
+           <Trash2 size={20} />
+           <span className="font-medium text-sm">Eliminato</span>
+        </div>
+        
+        <button 
+          onClick={handleUndo}
+          className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm border border-slate-700 transition-colors z-10"
+        >
+          <RotateCcw size={16} />
+          Annulla
+        </button>
+      </div>
+    );
+  }
+
+  // --- NORMAL VIEW ---
   return (
     <div 
       className={`relative mb-3 w-full overflow-hidden rounded-xl select-none touch-pan-y transition-all duration-300 ${isExpanded ? 'h-auto' : 'h-[88px]'}`}
