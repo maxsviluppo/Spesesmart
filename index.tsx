@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { 
@@ -222,9 +221,21 @@ const WeatherWidget = () => {
 // Voice Input Component (Fixed)
 const VoiceInput = ({ onResult }: { onResult: (text: string) => void }) => {
   const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const stopListening = useCallback(() => {
+    if (recognitionRef.current) {
+        try {
+            recognitionRef.current.stop();
+        } catch(e) {
+            console.error(e);
+        }
+        recognitionRef.current = null;
+    }
+    setIsListening(false);
+  }, []);
   
-  const startListening = () => {
-    // Check support
+  const startListening = useCallback(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
     if (!SpeechRecognition) {
@@ -232,7 +243,12 @@ const VoiceInput = ({ onResult }: { onResult: (text: string) => void }) => {
       return;
     }
 
+    // Stop any existing instances first
+    stopListening();
+
     const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+
     recognition.lang = 'it-IT';
     recognition.continuous = false;
     recognition.interimResults = false;
@@ -246,29 +262,34 @@ const VoiceInput = ({ onResult }: { onResult: (text: string) => void }) => {
       if (transcript) {
           onResult(transcript);
       }
-      recognition.stop(); // Interrompi immediatamente l'uso del microfono
-      setIsListening(false);
+      stopListening(); // Force stop immediately after result
     };
 
     recognition.onerror = (event: any) => {
         console.error("Speech error", event.error);
-        setIsListening(false);
+        stopListening();
     };
 
     recognition.onend = () => {
         setIsListening(false);
+        recognitionRef.current = null;
     };
 
-    recognition.start();
-  };
+    try {
+        recognition.start();
+    } catch(e) {
+        console.error("Start error", e);
+        stopListening();
+    }
+  }, [onResult, stopListening]);
 
   return (
     <button 
       type="button"
-      onClick={startListening} 
+      onClick={isListening ? stopListening : startListening} 
       className={`p-3 rounded-xl transition-all flex items-center justify-center shrink-0 ${isListening ? 'bg-red-600 text-white animate-pulse shadow-lg shadow-red-900/50' : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'}`}
     >
-      <Mic size={20} />
+      <Mic size={20} className={isListening ? 'animate-bounce' : ''} />
     </button>
   );
 };
@@ -1110,10 +1131,10 @@ const App = () => {
       );
       case 'alerts': {
         const sortedAlerts = [...manualAlerts].sort((a, b) => {
-            const timeA = new Date(`${a.date}T${a.time}`).getTime();
-            const timeB = new Date(`${b.date}T${b.time}`).getTime();
-            const valA: number = isNaN(timeA) ? 0 : timeA;
-            const valB: number = isNaN(timeB) ? 0 : timeB;
+            const dateA = new Date(`${a.date}T${a.time}`);
+            const dateB = new Date(`${b.date}T${b.time}`);
+            const valA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
+            const valB = isNaN(dateB.getTime()) ? 0 : dateB.getTime();
             return valA - valB;
         });
         
