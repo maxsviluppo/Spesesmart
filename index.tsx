@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { 
@@ -5,7 +6,7 @@ import {
   Wallet, PieChart as PieChartIcon, ArrowRight, Sparkles, CheckCircle2, Circle, Trash2, AlertTriangle, Info,
   ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut, Calendar, Clock, User, Key, Lock, ExternalLink, ChevronDown, ChevronUp, Mail,
   Sun, Cloud, CloudRain, CloudSnow, CloudLightning, MapPin, Droplets, ThermometerSun, Smartphone, Layout, Volume2, Eye, EyeOff, History,
-  Flag, XCircle, RefreshCcw
+  Flag, XCircle, RefreshCcw, StickyNote, Share2, Copy
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
@@ -40,6 +41,12 @@ export interface ListItem {
   id: string;
   text: string;
   completed: boolean;
+}
+
+export interface MemoItem {
+  id: string;
+  text: string;
+  date: string; // ISO string
 }
 
 export type AlertPriority = 'high' | 'medium' | 'low';
@@ -559,6 +566,7 @@ const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, no
                  <option value="doit">Do It</option>
                  <option value="alerts">Avvisi</option>
                  <option value="reports">Grafico</option>
+                 <option value="memos">Memo</option>
                </select>
              </div>
 
@@ -688,7 +696,7 @@ const App = () => {
   const [startUpTab, setStartUpTab] = useState(() => localStorage.getItem('startUpTab') || 'home');
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => localStorage.getItem('notificationsEnabled') === 'true');
   const [alarmVolume, setAlarmVolume] = useState(() => parseFloat(localStorage.getItem('alarmVolume') || '0.5'));
-  const [activeTab, setActiveTab] = useState<'home' | 'shopping' | 'doit' | 'alerts' | 'reports'>(startUpTab as any);
+  const [activeTab, setActiveTab] = useState<'home' | 'shopping' | 'doit' | 'alerts' | 'reports' | 'memos'>(startUpTab as any);
   
   // Balance Visibility
   const [isBalanceHidden, setIsBalanceHidden] = useState(() => localStorage.getItem('isBalanceHidden') === 'true');
@@ -717,6 +725,13 @@ const App = () => {
   const [todoList, setTodoList] = useState<ListItem[]>(() => {
     try {
         const d = JSON.parse(localStorage.getItem('todoList') || '[]');
+        return Array.isArray(d) ? d : [];
+    } catch { return []; }
+  });
+
+  const [memos, setMemos] = useState<MemoItem[]>(() => {
+    try {
+        const d = JSON.parse(localStorage.getItem('memos') || '[]');
         return Array.isArray(d) ? d : [];
     } catch { return []; }
   });
@@ -756,6 +771,7 @@ const App = () => {
   // Inputs
   const [newShoppingItem, setNewShoppingItem] = useState('');
   const [newTodoItem, setNewTodoItem] = useState('');
+  const [newMemoItem, setNewMemoItem] = useState('');
   
   // Alerts Inputs
   const [editingAlertId, setEditingAlertId] = useState<string | null>(null);
@@ -772,6 +788,7 @@ const App = () => {
   useEffect(() => { localStorage.setItem('transactions', JSON.stringify(transactions)); }, [transactions]);
   useEffect(() => { localStorage.setItem('shoppingList', JSON.stringify(shoppingList)); }, [shoppingList]);
   useEffect(() => { localStorage.setItem('todoList', JSON.stringify(todoList)); }, [todoList]);
+  useEffect(() => { localStorage.setItem('memos', JSON.stringify(memos)); }, [memos]);
   useEffect(() => { localStorage.setItem('manualAlerts', JSON.stringify(manualAlerts)); }, [manualAlerts]);
   useEffect(() => { localStorage.setItem('expenseCategories', JSON.stringify(expenseCategories)); }, [expenseCategories]);
   useEffect(() => { localStorage.setItem('incomeCategories', JSON.stringify(incomeCategories)); }, [incomeCategories]);
@@ -862,7 +879,7 @@ const App = () => {
     }
   };
 
-  const handleAddList = (type: 'shopping'|'todo', text: string) => {
+  const handleAddList = (type: 'shopping'|'todo'|'memo', text: string) => {
     if (!text.trim()) return;
     
     // Check if updating existing
@@ -870,23 +887,28 @@ const App = () => {
         if (type === 'shopping') {
             setShoppingList(p => p.map(i => i.id === editingListItemId ? { ...i, text: text.trim() } : i));
             setNewShoppingItem('');
-        } else {
+        } else if (type === 'todo') {
             setTodoList(p => p.map(i => i.id === editingListItemId ? { ...i, text: text.trim() } : i));
             setNewTodoItem('');
+        } else {
+            setMemos(p => p.map(i => i.id === editingListItemId ? { ...i, text: text.trim(), date: i.date } : i));
+            setNewMemoItem('');
         }
         setEditingListItemId(null);
     } else {
         // Creating new
         const item = { id: crypto.randomUUID(), text: text.trim(), completed: false };
         if (type === 'shopping') { setShoppingList([item, ...shoppingList]); setNewShoppingItem(''); }
-        else { setTodoList([item, ...todoList]); setNewTodoItem(''); }
+        else if (type === 'todo') { setTodoList([item, ...todoList]); setNewTodoItem(''); }
+        else { setMemos([{ id: crypto.randomUUID(), text: text.trim(), date: new Date().toISOString() }, ...memos]); setNewMemoItem(''); }
     }
   };
 
-  const startEditingList = (type: 'shopping'|'todo', item: ListItem) => {
+  const startEditingList = (type: 'shopping'|'todo'|'memo', item: any) => {
     setEditingListItemId(item.id);
     if (type === 'shopping') setNewShoppingItem(item.text);
-    else setNewTodoItem(item.text);
+    else if (type === 'todo') setNewTodoItem(item.text);
+    else setNewMemoItem(item.text);
   };
 
   const toggleList = (type: 'shopping'|'todo', id: string) => {
@@ -894,14 +916,46 @@ const App = () => {
     else setTodoList(p => p.map(i => i.id === id ? { ...i, completed: !i.completed } : i));
   };
 
-  const deleteList = (type: 'shopping'|'todo', id: string) => {
+  const deleteList = (type: 'shopping'|'todo'|'memo', id: string) => {
     if (type === 'shopping') setShoppingList(p => p.filter(i => i.id !== id));
-    else setTodoList(p => p.filter(i => i.id !== id));
+    else if (type === 'todo') setTodoList(p => p.filter(i => i.id !== id));
+    else setMemos(p => p.filter(i => i.id !== id));
+
     if (editingListItemId === id) {
         setEditingListItemId(null);
         if (type === 'shopping') setNewShoppingItem('');
-        else setNewTodoItem('');
+        else if (type === 'todo') setNewTodoItem('');
+        else setNewMemoItem('');
     }
+  };
+
+  const handleShareMemo = async (memo: MemoItem) => {
+      const shareData = {
+          title: 'Memo Spese Smart',
+          text: memo.text
+      };
+      if (navigator.share) {
+          try {
+              await navigator.share(shareData);
+          } catch (err) {
+              console.log('Share canceled', err);
+          }
+      } else {
+          navigator.clipboard.writeText(memo.text);
+          alert('Memo copiato negli appunti');
+      }
+  };
+
+  // Helper for alert urgency color (defined before usage)
+  const getAlertStyle = (date: string, time: string) => {
+    const now = new Date();
+    const due = new Date(`${date}T${time}`);
+    const diffHours = (due.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    if (diffHours < 0) return 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]'; // Overdue (Red Neon)
+    if (diffHours < 24) return 'border-orange-400'; // < 24h (Yellow/Orange)
+    if (diffHours < 72) return 'border-emerald-400'; // < 3 days (Green)
+    return 'border-indigo-400'; // > 3 days (Blue)
   };
 
   const handleSaveAlert = () => {
@@ -946,18 +1000,6 @@ const App = () => {
 
   const toggleAlertComplete = (id: string) => {
      setManualAlerts(p => p.map(a => a.id === id ? { ...a, completed: !a.completed } : a));
-  };
-  
-  // Helper for alert urgency color
-  const getAlertStyle = (date: string, time: string) => {
-      const now = new Date();
-      const due = new Date(`${date}T${time}`);
-      const diffHours = (due.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-      if (diffHours < 0) return 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]'; // Overdue (Red Neon)
-      if (diffHours < 24) return 'border-orange-400'; // < 24h (Yellow/Orange)
-      if (diffHours < 72) return 'border-emerald-400'; // < 3 days (Green)
-      return 'border-indigo-400'; // > 3 days (Blue)
   };
 
   // Renderers
@@ -1037,13 +1079,42 @@ const App = () => {
           ))}
         </div>
       );
+      case 'memos': return (
+        <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+          <h3 className="font-bold text-white mb-4 flex items-center gap-2"><StickyNote size={20} className="text-yellow-400"/> Memo</h3>
+          <div className="flex gap-2 mb-4">
+            <input value={newMemoItem} onChange={e => setNewMemoItem(e.target.value)} placeholder={editingListItemId ? "Modifica..." : "Scrivi nota..."} className={`flex-1 bg-slate-950 border ${editingListItemId ? 'border-indigo-500' : 'border-slate-700'} rounded-lg px-3 py-2 text-white outline-none`} onKeyDown={e => e.key === 'Enter' && handleAddList('memo', newMemoItem)}/>
+            <VoiceInput onResult={setNewMemoItem} />
+            <button onClick={() => handleAddList('memo', newMemoItem)} className={`text-white p-2 rounded-lg ${editingListItemId ? 'bg-emerald-600' : 'bg-indigo-600'}`}>{editingListItemId ? <Check size={20}/> : <Plus size={20}/>}</button>
+          </div>
+          {memos.map(i => (
+             <SwipeableItem 
+                key={i.id} 
+                onSwipeLeft={() => deleteList('memo', i.id)} 
+                onSwipeRight={() => startEditingList('memo', i)} 
+                rightLabel="Modifica" 
+                rightIcon={<Edit2 size={24}/>} 
+                rightColor="bg-indigo-600"
+             >
+                <div className="flex flex-col justify-center p-4 min-h-[70px] relative">
+                   <p className="text-white text-sm mb-1">{String(i.text)}</p>
+                   <div className="flex justify-between items-center mt-1">
+                       <span className="text-[10px] text-slate-500">{new Date(i.date).toLocaleDateString()} {new Date(i.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                       <button onClick={(e) => { e.stopPropagation(); handleShareMemo(i); }} className="text-indigo-400 p-1 hover:bg-slate-800 rounded"><Share2 size={16}/></button>
+                   </div>
+                </div>
+             </SwipeableItem>
+          ))}
+          {memos.length === 0 && <p className="text-center text-slate-600 text-xs py-4">Nessun memo salvato.</p>}
+        </div>
+      );
       case 'alerts': {
         const sortedAlerts = [...manualAlerts].sort((a, b) => {
             const timeA = new Date(`${a.date}T${a.time}`).getTime();
             const timeB = new Date(`${b.date}T${b.time}`).getTime();
-            const valA = isNaN(timeA) ? 0 : timeA;
-            const valB = isNaN(timeB) ? 0 : timeB;
-            return Number(valA) - Number(valB);
+            const valA: number = isNaN(timeA) ? 0 : timeA;
+            const valB: number = isNaN(timeB) ? 0 : timeB;
+            return valA - valB;
         });
         
         return (
@@ -1106,7 +1177,7 @@ const App = () => {
            <div className="space-y-2">
              <p className="text-[10px] text-slate-500 text-center mb-2 italic">(Doppio clic per segnare come completato)</p>
              {sortedAlerts.map(a => {
-               const isDue = new Date(`${a.date}T${a.time}`) <= new Date();
+               const isDue = new Date(`${a.date}T${a.time}`).getTime() <= new Date().getTime();
                const urgencyClass = getAlertStyle(a.date, a.time);
                const finalClass = (isDue && !a.completed) ? 'shadow-[0_0_15px_rgba(239,68,68,0.6)] border-red-500' : urgencyClass;
                
@@ -1246,7 +1317,8 @@ const App = () => {
           <div className="flex justify-around items-center h-16">
               {[
                 {id:'home', icon:Wallet, l:'Wallet'}, {id:'shopping', icon:ShoppingCart, l:'Spesa'}, 
-                {id:'doit', icon:ListTodo, l:'Do It'}, {id:'alerts', icon:Bell, l:'Avvisi'}, {id:'reports', icon:PieChartIcon, l:'Grafico'}
+                {id:'doit', icon:ListTodo, l:'Do It'}, {id:'memos', icon:StickyNote, l:'Memo'},
+                {id:'alerts', icon:Bell, l:'Avvisi'}, {id:'reports', icon:PieChartIcon, l:'Grafico'}
               ].map(i => (
                 <button key={i.id} onClick={() => setActiveTab(i.id as any)} className={`flex flex-col items-center justify-center w-14 ${activeTab === i.id ? 'text-indigo-400' : 'text-slate-500'}`}>
                   <i.icon size={22} className={activeTab === i.id ? 'fill-indigo-400/20' : ''}/><span className="text-[9px] font-bold mt-1">{i.l}</span>
