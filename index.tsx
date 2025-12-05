@@ -389,6 +389,10 @@ on public.transactions for delete to authenticated using (auth.uid() = user_id);
                <select value={startUpTab} onChange={(e) => setStartUpTab(e.target.value)} className="bg-slate-800 text-white text-xs p-2 rounded border border-slate-700 outline-none">
                  <option value="home">Wallet</option>
                  <option value="shopping">Spesa</option>
+                 <option value="doit">Do It</option>
+                 <option value="memos">Memo</option>
+                 <option value="alerts">Avvisi</option>
+                 <option value="reports">Grafico</option>
                </select>
              </div>
           </div>
