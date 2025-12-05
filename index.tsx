@@ -5,7 +5,7 @@ import {
   Wallet, PieChart as PieChartIcon, ArrowRight, Sparkles, CheckCircle2, Circle, Trash2, AlertTriangle, Info,
   ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut, Calendar, Clock, User, Key, Lock, ExternalLink, ChevronDown, ChevronUp, Mail,
   Sun, Cloud, CloudRain, CloudSnow, CloudLightning, MapPin, Droplets, ThermometerSun, Smartphone, Layout, Volume2, Eye, EyeOff, History,
-  Flag, XCircle, RefreshCcw, StickyNote, Share2, Copy, Database, LogIn, KeyRound
+  Flag, XCircle, RefreshCcw, StickyNote, Share2, Copy, Database, LogIn, KeyRound, Terminal
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
@@ -323,6 +323,38 @@ const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, no
   const [password, setPassword] = useState('');
   const [authMode, setAuthMode] = useState<'login'|'register'|'reset'>('login');
   const [authLoading, setAuthLoading] = useState(false);
+  const [showSql, setShowSql] = useState(false);
+
+  const SQL_SCHEMA = `
+-- Crea la tabella per le transazioni
+create table public.transactions (
+  id uuid not null default gen_random_uuid(),
+  user_id uuid not null references auth.users on delete cascade,
+  amount numeric not null,
+  description text not null,
+  category text not null,
+  type text not null,
+  date timestamptz not null default now(),
+  created_at timestamptz default now(),
+  primary key (id)
+);
+
+-- Abilita la sicurezza (Row Level Security)
+alter table public.transactions enable row level security;
+
+-- Crea le policy per permettere agli utenti di vedere solo i propri dati
+create policy "Users can read their own transactions"
+on public.transactions for select to authenticated using (auth.uid() = user_id);
+
+create policy "Users can insert their own transactions"
+on public.transactions for insert to authenticated with check (auth.uid() = user_id);
+
+create policy "Users can update their own transactions"
+on public.transactions for update to authenticated using (auth.uid() = user_id);
+
+create policy "Users can delete their own transactions"
+on public.transactions for delete to authenticated using (auth.uid() = user_id);
+  `.trim();
 
   const handleAuth = async () => {
       setAuthLoading(true);
@@ -333,6 +365,11 @@ const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, no
       }
       setAuthLoading(false);
       if(authMode !== 'reset') { setEmail(''); setPassword(''); }
+  };
+
+  const copySql = () => {
+      navigator.clipboard.writeText(SQL_SCHEMA);
+      alert("Codice SQL copiato! Incollalo nell'SQL Editor di Supabase.");
   };
 
   if (!isOpen) return null;
@@ -357,7 +394,25 @@ const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, no
           </div>
 
           <div className="space-y-3">
-              <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Database size={14}/> Cloud & Sync (Supabase)</h3>
+              <div className="flex justify-between items-center">
+                  <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Database size={14}/> Cloud & Sync (Supabase)</h3>
+                  <button onClick={() => setShowSql(!showSql)} className="text-[10px] text-indigo-400 flex items-center gap-1 hover:text-indigo-300">
+                      <Terminal size={12}/> {showSql ? 'Nascondi SQL' : 'Schema Database'}
+                  </button>
+              </div>
+
+              {showSql && (
+                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 animate-fade-in">
+                      <div className="flex justify-between items-center mb-2">
+                        <p className="text-[10px] text-slate-400">Esegui questo script nell'SQL Editor di Supabase per creare le tabelle.</p>
+                        <button onClick={copySql} className="text-xs bg-indigo-600 text-white px-2 py-1 rounded flex items-center gap-1"><Copy size={12}/> Copia</button>
+                      </div>
+                      <pre className="text-[10px] text-slate-300 overflow-x-auto p-2 bg-slate-900 rounded border border-slate-800 font-mono">
+                          {SQL_SCHEMA}
+                      </pre>
+                  </div>
+              )}
+
               <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 space-y-4">
                   <div className="space-y-2">
                       <label className="text-[10px] text-slate-500 uppercase">Project URL</label>
