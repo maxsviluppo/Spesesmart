@@ -875,6 +875,7 @@ const App = () => {
           <h3 className="font-bold text-white mb-4 flex items-center gap-2"><ListTodo size={20} className="text-indigo-400"/> Cose da fare</h3>
           <div className="flex gap-2 mb-4">
             <input value={newTodoItem} onChange={e => setNewTodoItem(e.target.value)} placeholder="Attività..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none" onKeyDown={e => e.key === 'Enter' && handleAddList('todo', newTodoItem)}/>
+            <VoiceInput onResult={setNewTodoItem} />
             <button onClick={() => handleAddList('todo', newTodoItem)} className="text-white p-2 rounded-lg bg-indigo-600"><Plus size={20}/></button>
           </div>
           {todoList.map(i => (
@@ -891,6 +892,7 @@ const App = () => {
         <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
            <div className="flex gap-2 mb-4">
             <input value={newMemoItem} onChange={e => setNewMemoItem(e.target.value)} placeholder="Nota..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none" onKeyDown={e => e.key === 'Enter' && handleAddList('memo', newMemoItem)}/>
+            <VoiceInput onResult={setNewMemoItem} />
             <button onClick={() => handleAddList('memo', newMemoItem)} className="text-white p-2 rounded-lg bg-indigo-600"><Plus size={20}/></button>
           </div>
           {memos.map(i => (
@@ -914,7 +916,10 @@ const App = () => {
            </div>
            {isAddingAlert && (
              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 mb-4 space-y-3">
-                 <input value={newAlertMsg} onChange={e => setNewAlertMsg(e.target.value)} placeholder="Messaggio..." className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"/>
+                 <div className="flex gap-2">
+                    <input value={newAlertMsg} onChange={e => setNewAlertMsg(e.target.value)} placeholder="Messaggio..." className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"/>
+                    <VoiceInput onResult={setNewAlertMsg} />
+                 </div>
                  <div className="flex gap-2">
                     <input type="date" value={newAlertDate} onChange={e => setNewAlertDate(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"/>
                     <input type="time" value={newAlertTime} onChange={e => setNewAlertTime(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"/>
