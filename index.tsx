@@ -93,8 +93,8 @@ const getSupabaseClient = () => {
 };
 
 const getFinancialAdvice = async (transactions: Transaction[], month: string) => {
-  const apiKey = localStorage.getItem('geminiApiKey') || '';
-  if (!apiKey) return "API Key mancante. Vai nelle impostazioni e inserisci la tua chiave Gemini per ricevere consigli.";
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) return "API Key mancante. Configura process.env.API_KEY.";
 
   const ai = new GoogleGenAI({ apiKey });
   if (transactions.length === 0) return "Non ci sono abbastanza dati per generare un'analisi completa.";
@@ -121,11 +121,130 @@ const getFinancialAdvice = async (transactions: Transaction[], month: string) =>
     return response.text || "Analisi non disponibile.";
   } catch (error) {
     console.error(error);
-    return "Errore AI. Verifica la tua API Key nelle impostazioni.";
+    return "Errore AI. Verifica la tua configurazione.";
   }
 };
 
+// --- ERROR BOUNDARY ---
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: any;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: any): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: any, errorInfo: React.ErrorInfo) {
+    console.error("Uncaught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 bg-slate-950 min-h-screen text-slate-200 flex flex-col items-center justify-center text-center">
+           <AlertTriangle size={48} className="text-red-500 mb-4"/>
+           <h1 className="text-xl font-bold mb-2">Qualcosa è andato storto.</h1>
+           <p className="text-sm text-slate-400 mb-4">Potrebbe esserci un problema con i dati salvati.</p>
+           <button 
+             onClick={() => { localStorage.clear(); location.reload(); }}
+             className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold"
+           >
+             Resetta Dati e Riavvia
+           </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // --- COMPONENTS ---
+
+// Share List Modal
+const ShareListModal = ({ isOpen, onClose, items }: { isOpen: boolean; onClose: () => void; items: ListItem[] }) => {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (isOpen) {
+      const toBuy = items.filter(i => !i.completed).map(i => i.id);
+      setSelectedIds(new Set(toBuy));
+    }
+  }, [isOpen, items]);
+
+  const toggleSelection = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedIds(newSet);
+  };
+
+  const handleShare = async () => {
+    const text = items
+      .filter(i => selectedIds.has(i.id))
+      .map(i => `- ${i.text}`)
+      .join('\n');
+    
+    const shareData = {
+      title: 'Lista della Spesa',
+      text: `Lista della Spesa:\n\n${text}`,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareData.text);
+        alert('Lista copiata negli appunti!');
+      }
+      onClose();
+    } catch (err) {
+      console.error('Error sharing', err);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-slate-900 w-full max-w-md rounded-2xl border border-slate-800 overflow-hidden animate-slide-up flex flex-col max-h-[80vh]">
+        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900">
+           <h2 className="font-bold text-white flex items-center gap-2"><Share2 size={20}/> Condividi Lista</h2>
+           <button onClick={onClose}><X size={24} className="text-slate-400" /></button>
+        </div>
+        <div className="p-4 overflow-y-auto flex-1">
+           <p className="text-xs text-slate-400 mb-3">Seleziona gli elementi da inviare:</p>
+           <div className="space-y-2">
+             {items.map(i => (
+               <div key={i.id} onClick={() => toggleSelection(i.id)} className={`p-3 rounded-lg border flex items-center gap-3 cursor-pointer ${selectedIds.has(i.id) ? 'bg-indigo-900/20 border-indigo-500/50' : 'bg-slate-950 border-slate-800'}`}>
+                  <div className={`w-5 h-5 rounded flex items-center justify-center border ${selectedIds.has(i.id) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-600'}`}>
+                    {selectedIds.has(i.id) && <Check size={14} className="text-white"/>}
+                  </div>
+                  <span className={`text-sm ${i.completed ? 'line-through text-slate-500' : 'text-slate-200'}`}>{typeof i.text === 'string' ? i.text : 'Elemento'}</span>
+               </div>
+             ))}
+             {items.length === 0 && <p className="text-center text-slate-500 text-sm">Lista vuota</p>}
+           </div>
+        </div>
+        <div className="p-4 border-t border-slate-800 bg-slate-900">
+          <button onClick={handleShare} disabled={selectedIds.size === 0} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+            <Share2 size={18} /> Invia {selectedIds.size} elementi
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Weather Widget Component
 const WeatherWidget = () => {
@@ -244,38 +363,79 @@ const VoiceInput = ({ onResult }: { onResult: (text: string) => void }) => {
   );
 };
 
-// Swipeable Item
+// Swipeable Item (Enhanced for Mouse & Touch)
 const SwipeableItem = ({ children, onSwipeLeft, onSwipeRight, rightLabel="Modifica", rightIcon=<Edit2 size={24}/>, leftLabel="Elimina", onDoubleClick }: any) => {
   const [startX, setStartX] = useState<number | null>(null);
   const [currentX, setCurrentX] = useState<number>(0);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   
-  const handleTouchStart = (e: React.TouchEvent) => setStartX(e.touches[0].clientX);
+  // Touch Handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setStartX(e.touches[0].clientX);
+    setIsDragging(true);
+  };
   const handleTouchMove = (e: React.TouchEvent) => {
     if (startX === null || isDeleting) return;
     const diff = e.touches[0].clientX - startX;
     if (diff > 0 && !onSwipeRight) return;
     setCurrentX(diff > 100 ? 100 + (diff-100)*0.2 : diff);
   };
+
+  // Mouse Handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setStartX(e.clientX);
+    setIsDragging(true);
+  };
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || startX === null || isDeleting) return;
+    e.preventDefault();
+    const diff = e.clientX - startX;
+    if (diff > 0 && !onSwipeRight) return;
+    setCurrentX(diff > 100 ? 100 + (diff-100)*0.2 : diff);
+  };
+
   const handleEnd = () => {
-    if (onSwipeRight && currentX > 70) { onSwipeRight(); setCurrentX(0); }
-    else if (currentX < -150) {
-      setIsDeleting(true); setCurrentX(-window.innerWidth);
+    if (!isDragging && startX === null) return;
+    setIsDragging(false);
+    
+    if (onSwipeRight && currentX > 70) { 
+        onSwipeRight(); 
+        setCurrentX(0); 
+    } else if (currentX < -150) {
+      setIsDeleting(true); 
+      setCurrentX(-window.innerWidth);
       if (navigator.vibrate) navigator.vibrate(50);
       setTimeout(onSwipeLeft, 300);
-    } else setCurrentX(0);
+    } else {
+        setCurrentX(0);
+    }
     setStartX(null);
   };
 
   if (isDeleting && Math.abs(currentX) >= window.innerWidth) return <div className="h-[70px] mb-2 w-full"></div>;
 
   return (
-    <div className="relative mb-2 w-full overflow-hidden rounded-xl select-none touch-pan-y" style={{ touchAction: 'pan-y' }} onDoubleClick={onDoubleClick}>
+    <div 
+        className="relative mb-2 w-full overflow-hidden rounded-xl select-none touch-pan-y" 
+        style={{ touchAction: 'pan-y' }} 
+        onDoubleClick={onDoubleClick}
+        onMouseLeave={handleEnd}
+        onMouseUp={handleEnd}
+    >
       <div className={`absolute inset-0 flex items-center justify-between px-6 transition-colors ${currentX > 0 ? 'bg-indigo-600' : 'bg-red-600'}`}>
         {onSwipeRight && <div className="flex items-center gap-2 text-white font-bold" style={{ opacity: currentX > 30 ? 1 : 0 }}>{rightIcon} <span>{rightLabel}</span></div>}
         <div className="flex items-center gap-2 text-white font-bold ml-auto" style={{ opacity: currentX < -30 ? 1 : 0 }}><span>{leftLabel}</span> <Trash2 size={24} /></div>
       </div>
-      <div className="relative bg-slate-900 border border-slate-800 rounded-xl transition-transform ease-out" style={{ transform: `translateX(${currentX}px)` }} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleEnd}>
+      <div 
+        className="relative bg-slate-900 border border-slate-800 rounded-xl transition-transform ease-out" 
+        style={{ transform: `translateX(${currentX}px)`, transition: isDragging ? 'none' : 'transform 0.3s ease-out' }} 
+        onTouchStart={handleTouchStart} 
+        onTouchMove={handleTouchMove} 
+        onTouchEnd={handleEnd}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+      >
         {children}
       </div>
     </div>
@@ -286,6 +446,7 @@ const SwipeableItem = ({ children, onSwipeLeft, onSwipeRight, rightLabel="Modifi
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
+    if (!data) return null;
     return (
       <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl shadow-xl z-50 animate-fade-in">
         <div className="flex items-center gap-2 mb-1">
@@ -318,7 +479,7 @@ const StatsCard = ({ label, amount, type, onClick, isHidden }: any) => {
 };
 
 // Settings Modal Updated with Password Reset
-const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, notificationsEnabled, setNotificationsEnabled, startUpTab, setStartUpTab, onSaveSettings, alarmVolume, setAlarmVolume, onTestSound, apiKey, setApiKey, supabaseUrl, setSupabaseUrl, supabaseKey, setSupabaseKey, onLogin, onResetPassword, currentUser, onLogout }: any) => {
+const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, notificationsEnabled, setNotificationsEnabled, startUpTab, setStartUpTab, onSaveSettings, alarmVolume, setAlarmVolume, onTestSound, supabaseUrl, setSupabaseUrl, supabaseKey, setSupabaseKey, onLogin, onResetPassword, currentUser, onLogout }: any) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authMode, setAuthMode] = useState<'login'|'register'|'reset'>('login');
@@ -465,11 +626,6 @@ on public.transactions for delete to authenticated using (auth.uid() = user_id);
           </div>
 
           <div className="space-y-3">
-              <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Key size={14}/> Gemini AI</h3>
-              <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="API Key Gemini" className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-xs text-white"/>
-          </div>
-
-          <div className="space-y-3">
              <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><User size={14}/> Profilo Locale</h3>
              <input type="text" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="Il tuo nome" className="w-full bg-slate-950 border border-slate-800 rounded p-3 text-white"/>
           </div>
@@ -582,35 +738,40 @@ const App = () => {
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   const [isBalanceHidden, setIsBalanceHidden] = useState(() => localStorage.getItem('isBalanceHidden') === 'true');
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('geminiApiKey') || '');
   const [userName, setUserName] = useState(() => localStorage.getItem('userName') || '');
 
-  // State
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    try { const d = JSON.parse(localStorage.getItem('transactions') || '[]'); return Array.isArray(d) ? d : []; } catch { return []; }
-  });
-  const [shoppingList, setShoppingList] = useState<ListItem[]>(() => {
-    try { const d = JSON.parse(localStorage.getItem('shoppingList') || '[]'); return Array.isArray(d) ? d : []; } catch { return []; }
-  });
-  const [todoList, setTodoList] = useState<ListItem[]>(() => {
-    try { const d = JSON.parse(localStorage.getItem('todoList') || '[]'); return Array.isArray(d) ? d : []; } catch { return []; }
-  });
-  const [memos, setMemos] = useState<MemoItem[]>(() => {
-    try { const d = JSON.parse(localStorage.getItem('memos') || '[]'); return Array.isArray(d) ? d : []; } catch { return []; }
-  });
-  const [manualAlerts, setManualAlerts] = useState<ManualAlert[]>(() => {
-    try { const d = JSON.parse(localStorage.getItem('manualAlerts') || '[]'); return Array.isArray(d) ? d : []; } catch { return []; }
-  });
-  const [expenseCategories, setExpenseCategories] = useState<string[]>(() => {
-    try { const d = JSON.parse(localStorage.getItem('expenseCategories') || JSON.stringify(DEFAULT_EXPENSE_CATEGORIES)); return Array.isArray(d) ? d : DEFAULT_EXPENSE_CATEGORIES; } catch { return DEFAULT_EXPENSE_CATEGORIES; }
-  });
-  const [incomeCategories, setIncomeCategories] = useState<string[]>(() => {
-    try { const d = JSON.parse(localStorage.getItem('incomeCategories') || JSON.stringify(DEFAULT_INCOME_CATEGORIES)); return Array.isArray(d) ? d : DEFAULT_INCOME_CATEGORIES; } catch { return DEFAULT_INCOME_CATEGORIES; }
-  });
+  // Safely Parse LocalStorage with strict type checks
+  const safeJsonParse = (key: string, defaultVal: any) => {
+    try {
+      const stored = localStorage.getItem(key);
+      if (!stored) return defaultVal;
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) return defaultVal;
+      return parsed;
+    } catch {
+      return defaultVal;
+    }
+  };
+
+  const safeCategoriesParse = (key: string, defaultVal: string[]) => {
+    const arr = safeJsonParse(key, defaultVal);
+    // Ensure all items are strings to prevent [object Object] errors
+    return arr.map((i: any) => typeof i === 'string' ? i : String(i));
+  };
+
+  const [transactions, setTransactions] = useState<Transaction[]>(() => safeJsonParse('transactions', []));
+  const [shoppingList, setShoppingList] = useState<ListItem[]>(() => safeJsonParse('shoppingList', []));
+  const [todoList, setTodoList] = useState<ListItem[]>(() => safeJsonParse('todoList', []));
+  const [memos, setMemos] = useState<MemoItem[]>(() => safeJsonParse('memos', []));
+  const [manualAlerts, setManualAlerts] = useState<ManualAlert[]>(() => safeJsonParse('manualAlerts', []));
+  
+  const [expenseCategories, setExpenseCategories] = useState<string[]>(() => safeCategoriesParse('expenseCategories', DEFAULT_EXPENSE_CATEGORIES));
+  const [incomeCategories, setIncomeCategories] = useState<string[]>(() => safeCategoriesParse('incomeCategories', DEFAULT_INCOME_CATEGORIES));
 
   // UI State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false); // Share Modal State
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editingListItemId, setEditingListItemId] = useState<string | null>(null);
   const [isAddingAlert, setIsAddingAlert] = useState(false);
@@ -620,6 +781,11 @@ const App = () => {
   const [newTodoItem, setNewTodoItem] = useState('');
   const [newMemoItem, setNewMemoItem] = useState('');
   
+  // Refs for focusing
+  const shoppingInputRef = useRef<HTMLInputElement>(null);
+  const todoInputRef = useRef<HTMLInputElement>(null);
+  const memoInputRef = useRef<HTMLInputElement>(null);
+
   // Alerts Inputs
   const [editingAlertId, setEditingAlertId] = useState<string | null>(null);
   const [newAlertMsg, setNewAlertMsg] = useState('');
@@ -641,7 +807,6 @@ const App = () => {
   useEffect(() => { localStorage.setItem('userName', userName); }, [userName]);
   useEffect(() => { localStorage.setItem('alarmVolume', alarmVolume.toString()); }, [alarmVolume]);
   useEffect(() => { localStorage.setItem('isBalanceHidden', String(isBalanceHidden)); }, [isBalanceHidden]);
-  useEffect(() => { localStorage.setItem('geminiApiKey', apiKey); }, [apiKey]);
   useEffect(() => { localStorage.setItem('supabaseUrl', supabaseUrl); }, [supabaseUrl]);
   useEffect(() => { localStorage.setItem('supabaseKey', supabaseKey); }, [supabaseKey]);
 
@@ -671,11 +836,11 @@ const App = () => {
 
       if (mode === 'register') {
           const { data, error } = await sb.auth.signUp({ email: e, password: p });
-          if (error) alert(error.message);
+          if (error) alert(error.message || "Errore sconosciuto");
           else alert("Registrazione effettuata! Controlla la tua email.");
       } else {
           const { data, error } = await sb.auth.signInWithPassword({ email: e, password: p });
-          if (error) alert(error.message);
+          if (error) alert(error.message || "Errore sconosciuto");
           else {
               setCurrentUser(data.user);
               // Force reload from cloud
@@ -689,7 +854,7 @@ const App = () => {
       const sb = getSupabaseClient();
       if (!sb) return alert("Configura prima Supabase!");
       const { error } = await sb.auth.resetPasswordForEmail(email);
-      if (error) alert("Errore: " + error.message);
+      if (error) alert("Errore: " + (error.message || "Sconosciuto"));
       else alert("Email di recupero inviata! Controlla la posta.");
   };
 
@@ -781,7 +946,18 @@ const App = () => {
   };
   const startEditingList = (type: 'shopping'|'todo'|'memo', item: any) => {
     setEditingListItemId(item.id);
-    if (type === 'shopping') setNewShoppingItem(item.text); else if (type === 'todo') setNewTodoItem(item.text); else setNewMemoItem(item.text);
+    if (type === 'shopping') {
+       setNewShoppingItem(item.text);
+       setTimeout(() => shoppingInputRef.current?.focus(), 100);
+    }
+    else if (type === 'todo') {
+       setNewTodoItem(item.text);
+       setTimeout(() => todoInputRef.current?.focus(), 100);
+    } 
+    else {
+       setNewMemoItem(item.text);
+       setTimeout(() => memoInputRef.current?.focus(), 100);
+    }
   };
   const toggleList = (type: 'shopping'|'todo', id: string) => {
     if (type === 'shopping') setShoppingList(p => p.map(i => i.id === id ? { ...i, completed: !i.completed } : i));
@@ -826,7 +1002,7 @@ const App = () => {
     return Object.entries(grouped).map(([name, value], index) => {
       const val = Number(value);
       return { 
-        name, 
+        name: String(name), // Force string
         value: val, 
         percentage: total > 0 ? ((val / total) * 100).toFixed(1) : '0',
         color: CHART_COLORS[index % CHART_COLORS.length] 
@@ -858,11 +1034,16 @@ const App = () => {
       );
       case 'shopping': return (
         <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
-          <h3 className="font-bold text-white mb-4 flex items-center gap-2"><ShoppingCart size={20} className="text-emerald-400"/> Lista Spesa</h3>
+          <div className="flex justify-between items-center mb-4">
+             <h3 className="font-bold text-white flex items-center gap-2"><ShoppingCart size={20} className="text-emerald-400"/> Lista Spesa</h3>
+             <button onClick={() => setIsShareModalOpen(true)} className="p-2 bg-slate-800 rounded-full text-indigo-400"><Share2 size={18}/></button>
+          </div>
           <div className="flex gap-2 mb-4">
-            <input value={newShoppingItem} onChange={e => setNewShoppingItem(e.target.value)} placeholder="Prodotto..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none" onKeyDown={e => e.key === 'Enter' && handleAddList('shopping', newShoppingItem)}/>
+            <input ref={shoppingInputRef} value={newShoppingItem} onChange={e => setNewShoppingItem(e.target.value)} placeholder="Prodotto..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none" onKeyDown={e => e.key === 'Enter' && handleAddList('shopping', newShoppingItem)}/>
             <VoiceInput onResult={setNewShoppingItem} />
-            <button onClick={() => handleAddList('shopping', newShoppingItem)} className="text-white p-2 rounded-lg bg-indigo-600"><Plus size={20}/></button>
+            <button onClick={() => handleAddList('shopping', newShoppingItem)} className={`text-white p-2 rounded-lg ${editingListItemId ? 'bg-emerald-600' : 'bg-indigo-600'}`}>
+                {editingListItemId ? <Save size={20}/> : <Plus size={20}/>}
+            </button>
           </div>
           {shoppingList.map(i => (
              <SwipeableItem key={i.id} onSwipeLeft={() => deleteList('shopping', i.id)} onSwipeRight={() => startEditingList('shopping', i)}>
@@ -878,9 +1059,11 @@ const App = () => {
         <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
           <h3 className="font-bold text-white mb-4 flex items-center gap-2"><ListTodo size={20} className="text-indigo-400"/> Cose da fare</h3>
           <div className="flex gap-2 mb-4">
-            <input value={newTodoItem} onChange={e => setNewTodoItem(e.target.value)} placeholder="Attività..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none" onKeyDown={e => e.key === 'Enter' && handleAddList('todo', newTodoItem)}/>
+            <input ref={todoInputRef} value={newTodoItem} onChange={e => setNewTodoItem(e.target.value)} placeholder="Attività..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none" onKeyDown={e => e.key === 'Enter' && handleAddList('todo', newTodoItem)}/>
             <VoiceInput onResult={setNewTodoItem} />
-            <button onClick={() => handleAddList('todo', newTodoItem)} className="text-white p-2 rounded-lg bg-indigo-600"><Plus size={20}/></button>
+            <button onClick={() => handleAddList('todo', newTodoItem)} className={`text-white p-2 rounded-lg ${editingListItemId ? 'bg-emerald-600' : 'bg-indigo-600'}`}>
+                {editingListItemId ? <Save size={20}/> : <Plus size={20}/>}
+            </button>
           </div>
           {todoList.map(i => (
              <SwipeableItem key={i.id} onSwipeLeft={() => deleteList('todo', i.id)} onSwipeRight={() => startEditingList('todo', i)}>
@@ -895,9 +1078,11 @@ const App = () => {
       case 'memos': return (
         <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
            <div className="flex gap-2 mb-4">
-            <input value={newMemoItem} onChange={e => setNewMemoItem(e.target.value)} placeholder="Nota..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none" onKeyDown={e => e.key === 'Enter' && handleAddList('memo', newMemoItem)}/>
+            <input ref={memoInputRef} value={newMemoItem} onChange={e => setNewMemoItem(e.target.value)} placeholder="Nota..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none" onKeyDown={e => e.key === 'Enter' && handleAddList('memo', newMemoItem)}/>
             <VoiceInput onResult={setNewMemoItem} />
-            <button onClick={() => handleAddList('memo', newMemoItem)} className="text-white p-2 rounded-lg bg-indigo-600"><Plus size={20}/></button>
+            <button onClick={() => handleAddList('memo', newMemoItem)} className={`text-white p-2 rounded-lg ${editingListItemId ? 'bg-emerald-600' : 'bg-indigo-600'}`}>
+                {editingListItemId ? <Save size={20}/> : <Plus size={20}/>}
+            </button>
           </div>
           {memos.map(i => (
              <SwipeableItem key={i.id} onSwipeLeft={() => deleteList('memo', i.id)} onSwipeRight={() => startEditingList('memo', i)}>
@@ -969,6 +1154,7 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 pb-32 font-sans">
+      <ErrorBoundary>
       <div className="max-w-lg mx-auto bg-slate-950 min-h-screen relative shadow-2xl">
         <header className="px-6 pt-12 pb-6 bg-gradient-to-b from-indigo-950/20 to-slate-950">
           <div className="flex justify-between items-start mb-6">
@@ -1009,6 +1195,7 @@ const App = () => {
           </div>
         </nav>
 
+        <ShareListModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} items={shoppingList} />
         <AddModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onSave={handleSaveTrans} initialData={editingTransaction} expenseCategories={expenseCategories} incomeCategories={incomeCategories} onAddCategory={(c: string, t: any) => t === 'expense' ? setExpenseCategories([...expenseCategories, c]) : setIncomeCategories([...incomeCategories, c])} />
         <SettingsModal 
             isOpen={isSettingsOpen} 
@@ -1019,12 +1206,12 @@ const App = () => {
             startUpTab={startUpTab} setStartUpTab={setStartUpTab}
             onSaveSettings={handleSaveSettings}
             alarmVolume={alarmVolume} setAlarmVolume={setAlarmVolume}
-            apiKey={apiKey} setApiKey={setApiKey}
             supabaseUrl={supabaseUrl} setSupabaseUrl={setSupabaseUrl}
             supabaseKey={supabaseKey} setSupabaseKey={setSupabaseKey}
             onLogin={handleSupabaseAuth} onResetPassword={handleResetPassword} currentUser={currentUser} onLogout={handleLogout}
         />
       </div>
+      </ErrorBoundary>
     </div>
   );
 };

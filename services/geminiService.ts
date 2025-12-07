@@ -1,10 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { Transaction } from "../types.ts";
 
-// Safe init: check if env exists (for GitHub Pages compatibility)
-const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '';
-
 // Only init AI if key is present to prevent immediate crash on static host
+const apiKey = process.env.API_KEY || '';
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const getFinancialAdvice = async (transactions: Transaction[], month: string) => {
