@@ -165,7 +165,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         </div>
       );
     }
-    return this.props.children;
+    return (this as any).props.children;
   }
 }
 
@@ -697,4 +697,555 @@ const AddModal = ({ isOpen, onClose, onSave, initialData, expenseCategories, inc
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
             <button type="button" className={`flex-1 py-2 rounded-md text-sm font-medium ${type === 'expense' ? 'bg-slate-800 text-red-400' : 'text-slate-500'}`} onClick={() => setType('expense')}>Uscita</button>
-            <button type="button" className={`flex-1 py-2 rounded-md text-sm font-medium ${type === '
+            <button type="button" className={`flex-1 py-2 rounded-md text-sm font-medium ${type === 'income' ? 'bg-slate-800 text-emerald-400' : 'text-slate-500'}`} onClick={() => setType('income')}>Entrata</button>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500 uppercase">Importo (€)</label>
+            <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" className="w-full text-4xl font-bold text-white bg-transparent border-b border-slate-700 focus:border-indigo-500 pb-2 outline-none" required />
+          </div>
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-xs font-semibold text-slate-500 uppercase">Descrizione</label>
+              <input type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="Es. Spesa" className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-white outline-none focus:border-indigo-500" required />
+            </div>
+            <div className="mt-5"><VoiceInput onResult={setDescription} /></div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500 uppercase mb-2 block">Categoria</label>
+            <div className="flex flex-wrap gap-2">
+              {(type === 'expense' ? expenseCategories : incomeCategories).map((cat: string) => (
+                <button key={String(cat)} type="button" onClick={() => setCategory(cat)} className={`px-3 py-1 rounded-full text-xs border ${category === cat ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-900 text-slate-400 border-slate-700'}`}>{String(cat)}</button>
+              ))}
+              {isAddingCategory ? (
+                <div className="flex gap-1"><input value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} className="w-20 bg-slate-800 text-xs px-2 rounded text-white" /><button type="button" onClick={handleAddCat}><Check size={14} className="text-emerald-500"/></button></div>
+              ) : (
+                <button type="button" onClick={() => setIsAddingCategory(true)} className="px-3 py-1 rounded-full text-xs border border-dashed border-slate-600 text-slate-500 flex gap-1"><Plus size={12} /> Nuova</button>
+              )}
+            </div>
+          </div>
+          <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-500 transition-all">{initialData ? 'Aggiorna' : 'Salva'}</button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// --- MAIN APP ---
+
+const App = () => {
+  const [startUpTab, setStartUpTab] = useState(() => localStorage.getItem('startUpTab') || 'home');
+  const [notificationsEnabled, setNotificationsEnabled] = useState(() => localStorage.getItem('notificationsEnabled') === 'true');
+  const [alarmVolume, setAlarmVolume] = useState(() => parseFloat(localStorage.getItem('alarmVolume') || '0.5'));
+  const [activeTab, setActiveTab] = useState<'home' | 'shopping' | 'doit' | 'alerts' | 'reports' | 'memos'>(startUpTab as any);
+  
+  // Supabase Config
+  const [supabaseUrl, setSupabaseUrl] = useState(() => localStorage.getItem('supabaseUrl') || '');
+  const [supabaseKey, setSupabaseKey] = useState(() => localStorage.getItem('supabaseKey') || '');
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  const [isBalanceHidden, setIsBalanceHidden] = useState(() => localStorage.getItem('isBalanceHidden') === 'true');
+  const [userName, setUserName] = useState(() => localStorage.getItem('userName') || '');
+
+  // Strict JSON Parsing to avoid [object Object] errors
+  const safeJsonParse = (key: string, defaultVal: any) => {
+    try {
+      const stored = localStorage.getItem(key);
+      if (!stored) return defaultVal;
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) return defaultVal;
+      return parsed;
+    } catch {
+      return defaultVal;
+    }
+  };
+
+  const safeCategoriesParse = (key: string, defaultVal: string[]) => {
+    const arr = safeJsonParse(key, defaultVal);
+    // Filter out non-strings to prevent [object Object] rendering
+    return arr.filter((i: any) => typeof i === 'string');
+  };
+
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    const raw = safeJsonParse('transactions', []);
+    return raw.filter((t: any) => t && typeof t === 'object' && typeof t.amount === 'number' && typeof t.description === 'string');
+  });
+
+  const [shoppingList, setShoppingList] = useState<ListItem[]>(() => {
+    const raw = safeJsonParse('shoppingList', []);
+    return raw.filter((i: any) => i && typeof i === 'object' && (typeof i.text === 'string' || typeof i.text === 'number'));
+  });
+
+  const [todoList, setTodoList] = useState<ListItem[]>(() => {
+    const raw = safeJsonParse('todoList', []);
+    return raw.filter((i: any) => i && typeof i === 'object' && (typeof i.text === 'string' || typeof i.text === 'number'));
+  });
+
+  const [memos, setMemos] = useState<MemoItem[]>(() => {
+     const raw = safeJsonParse('memos', []);
+     return raw.filter((i: any) => i && typeof i === 'object' && (typeof i.text === 'string'));
+  });
+
+  const [manualAlerts, setManualAlerts] = useState<ManualAlert[]>(() => {
+     const raw = safeJsonParse('manualAlerts', []);
+     return raw.filter((a: any) => a && typeof a === 'object' && typeof a.message === 'string');
+  });
+  
+  const [expenseCategories, setExpenseCategories] = useState<string[]>(() => safeCategoriesParse('expenseCategories', DEFAULT_EXPENSE_CATEGORIES));
+  const [incomeCategories, setIncomeCategories] = useState<string[]>(() => safeCategoriesParse('incomeCategories', DEFAULT_INCOME_CATEGORIES));
+
+  // UI State
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false); // Share Modal State
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editingListItemId, setEditingListItemId] = useState<string | null>(null);
+  const [isAddingAlert, setIsAddingAlert] = useState(false);
+  
+  // Inputs
+  const [newShoppingItem, setNewShoppingItem] = useState('');
+  const [newTodoItem, setNewTodoItem] = useState('');
+  const [newMemoItem, setNewMemoItem] = useState('');
+  
+  // Refs for focusing
+  const shoppingInputRef = useRef<HTMLInputElement>(null);
+  const todoInputRef = useRef<HTMLInputElement>(null);
+  const memoInputRef = useRef<HTMLInputElement>(null);
+
+  // Alerts Inputs
+  const [editingAlertId, setEditingAlertId] = useState<string | null>(null);
+  const [newAlertMsg, setNewAlertMsg] = useState('');
+  const [newAlertDate, setNewAlertDate] = useState('');
+  const [newAlertTime, setNewAlertTime] = useState('');
+  const [newAlertPriority, setNewAlertPriority] = useState<AlertPriority>('medium');
+
+  const [aiAdvice, setAiAdvice] = useState('');
+  const [isLoadingAi, setIsLoadingAi] = useState(false);
+
+  // Persist Local
+  useEffect(() => { if(!currentUser) localStorage.setItem('transactions', JSON.stringify(transactions)); }, [transactions, currentUser]);
+  useEffect(() => { localStorage.setItem('shoppingList', JSON.stringify(shoppingList)); }, [shoppingList]);
+  useEffect(() => { localStorage.setItem('todoList', JSON.stringify(todoList)); }, [todoList]);
+  useEffect(() => { localStorage.setItem('memos', JSON.stringify(memos)); }, [memos]);
+  useEffect(() => { localStorage.setItem('manualAlerts', JSON.stringify(manualAlerts)); }, [manualAlerts]);
+  useEffect(() => { localStorage.setItem('expenseCategories', JSON.stringify(expenseCategories)); }, [expenseCategories]);
+  useEffect(() => { localStorage.setItem('incomeCategories', JSON.stringify(incomeCategories)); }, [incomeCategories]);
+  useEffect(() => { localStorage.setItem('userName', userName); }, [userName]);
+  useEffect(() => { localStorage.setItem('alarmVolume', alarmVolume.toString()); }, [alarmVolume]);
+  useEffect(() => { localStorage.setItem('isBalanceHidden', String(isBalanceHidden)); }, [isBalanceHidden]);
+  useEffect(() => { localStorage.setItem('supabaseUrl', supabaseUrl); }, [supabaseUrl]);
+  useEffect(() => { localStorage.setItem('supabaseKey', supabaseKey); }, [supabaseKey]);
+
+  // DB SYNC: Fetch on Login
+  useEffect(() => {
+    const fetchCloudData = async () => {
+      const sb = getSupabaseClient();
+      if(sb) {
+        const { data: { user } } = await sb.auth.getUser();
+        setCurrentUser(user);
+        
+        if (user) {
+          // Fetch Transactions from Cloud
+          const { data, error } = await sb.from('transactions').select('*').order('date', { ascending: false });
+          if (!error && data) {
+            setTransactions(data as Transaction[]);
+          }
+        }
+      }
+    };
+    fetchCloudData();
+  }, [supabaseUrl, supabaseKey]); // Re-run if config changes
+
+  const handleSupabaseAuth = async (e: string, p: string, mode: 'login'|'register') => {
+      const sb = getSupabaseClient();
+      if (!sb) return alert("Configura prima URL e Key di Supabase!");
+
+      try {
+        if (mode === 'register') {
+            const { data, error } = await sb.auth.signUp({ email: e, password: p });
+            if (error) throw error;
+            else alert("Registrazione effettuata! Controlla la tua email.");
+        } else {
+            const { data, error } = await sb.auth.signInWithPassword({ email: e, password: p });
+            if (error) throw error;
+            else {
+                setCurrentUser(data.user);
+                // Force reload from cloud
+                const { data: cloudData } = await sb.from('transactions').select('*').order('date', { ascending: false });
+                if(cloudData) setTransactions(cloudData as Transaction[]);
+            }
+        }
+      } catch (err: any) {
+         alert(`Errore: ${err.message || String(err)}`);
+      }
+  };
+
+  const handleResetPassword = async (email: string) => {
+      const sb = getSupabaseClient();
+      if (!sb) return alert("Configura prima Supabase!");
+      const { error } = await sb.auth.resetPasswordForEmail(email);
+      if (error) alert("Errore: " + (error.message || "Sconosciuto"));
+      else alert("Email di recupero inviata! Controlla la posta.");
+  };
+
+  const handleLogout = async () => {
+     const sb = getSupabaseClient();
+     if(sb) await sb.auth.signOut();
+     setCurrentUser(null);
+     // Revert to local storage
+     try {
+       const d = JSON.parse(localStorage.getItem('transactions') || '[]');
+       setTransactions(d);
+     } catch { setTransactions([]); }
+  };
+
+  const handleSaveSettings = () => {
+    localStorage.setItem('startUpTab', startUpTab);
+    localStorage.setItem('notificationsEnabled', String(notificationsEnabled));
+    setIsSettingsOpen(false);
+  };
+
+  // CRUD TRANSACTIONS WITH SYNC
+  const handleSaveTrans = async (amount: number, description: string, category: string, type: TransactionType, id?: string) => {
+    const newTrans = {
+      id: id || crypto.randomUUID(),
+      amount,
+      description,
+      category,
+      type,
+      date: id ? transactions.find(t=>t.id===id)?.date || new Date().toISOString() : new Date().toISOString()
+    };
+
+    // Optimistic Update
+    if (id) {
+      setTransactions(p => p.map(t => t.id === id ? newTrans : t));
+    } else {
+      setTransactions(p => [newTrans, ...p]);
+    }
+
+    // Cloud Sync
+    if (currentUser) {
+       const sb = getSupabaseClient();
+       if (sb) {
+          const payload = {
+              user_id: currentUser.id, // Ensure user ownership
+              amount: newTrans.amount,
+              description: newTrans.description,
+              category: newTrans.category,
+              type: newTrans.type,
+              date: newTrans.date
+          };
+          
+          if (id) {
+              await sb.from('transactions').update(payload).eq('id', id);
+          } else {
+              // Note: Supabase generates its own UUID, but we can pass one if we want consistency or let it generate
+              // To match optimistic update, strictly we should use the same ID, but Supabase UUIDs are strict.
+              // For simplicity in this demo, we insert and let Supabase handle it, or we could pass the ID if UUID v4.
+              await sb.from('transactions').insert([{ ...payload, id: newTrans.id }]); 
+          }
+       }
+    }
+  };
+
+  const handleDeleteTrans = async (id: string) => {
+      // Optimistic
+      setTransactions(p => p.filter(t => t.id !== id));
+      
+      // Cloud
+      if (currentUser) {
+          const sb = getSupabaseClient();
+          if (sb) await sb.from('transactions').delete().eq('id', id);
+      }
+  };
+
+  // Lists & Alerts Handlers (Keep Local for now to satisfy prompt focus on DB logic, can be extended later)
+  const handleAddList = (type: 'shopping'|'todo'|'memo', text: string) => {
+    if (!text.trim()) return;
+    if (editingListItemId) {
+        if (type === 'shopping') { setShoppingList(p => p.map(i => i.id === editingListItemId ? { ...i, text: text.trim() } : i)); setNewShoppingItem(''); }
+        else if (type === 'todo') { setTodoList(p => p.map(i => i.id === editingListItemId ? { ...i, text: text.trim() } : i)); setNewTodoItem(''); }
+        else { setMemos(p => p.map(i => i.id === editingListItemId ? { ...i, text: text.trim(), date: i.date } : i)); setNewMemoItem(''); }
+        setEditingListItemId(null);
+    } else {
+        const item = { id: crypto.randomUUID(), text: text.trim(), completed: false };
+        if (type === 'shopping') { setShoppingList([item, ...shoppingList]); setNewShoppingItem(''); }
+        else if (type === 'todo') { setTodoList([item, ...todoList]); setNewTodoItem(''); }
+        else { setMemos([{ id: crypto.randomUUID(), text: text.trim(), date: new Date().toISOString() }, ...memos]); setNewMemoItem(''); }
+    }
+  };
+  const startEditingList = (type: 'shopping'|'todo'|'memo', item: any) => {
+    setEditingListItemId(item.id);
+    if (type === 'shopping') {
+       setNewShoppingItem(item.text);
+       setTimeout(() => shoppingInputRef.current?.focus(), 100);
+    }
+    else if (type === 'todo') {
+       setNewTodoItem(item.text);
+       setTimeout(() => todoInputRef.current?.focus(), 100);
+    } 
+    else {
+       setNewMemoItem(item.text);
+       setTimeout(() => memoInputRef.current?.focus(), 100);
+    }
+  };
+  const toggleList = (type: 'shopping'|'todo', id: string) => {
+    if (type === 'shopping') setShoppingList(p => p.map(i => i.id === id ? { ...i, completed: !i.completed } : i));
+    else setTodoList(p => p.map(i => i.id === id ? { ...i, completed: !i.completed } : i));
+  };
+  const deleteList = (type: 'shopping'|'todo'|'memo', id: string) => {
+    if (type === 'shopping') setShoppingList(p => p.filter(i => i.id !== id));
+    else if (type === 'todo') setTodoList(p => p.filter(i => i.id !== id));
+    else setMemos(p => p.filter(i => i.id !== id));
+    if (editingListItemId === id) { setEditingListItemId(null); type==='shopping'?setNewShoppingItem(''):type==='todo'?setNewTodoItem(''):setNewMemoItem(''); }
+  };
+  const handleSaveAlert = () => {
+    if(!newAlertMsg.trim() || !newAlertDate || !newAlertTime) return alert("Dati mancanti");
+    if (editingAlertId) { setManualAlerts(p => p.map(a => a.id === editingAlertId ? { ...a, message: newAlertMsg, date: newAlertDate, time: newAlertTime, priority: newAlertPriority } : a)); setEditingAlertId(null); }
+    else { setManualAlerts([{ id: crypto.randomUUID(), message: newAlertMsg, date: newAlertDate, time: newAlertTime, priority: newAlertPriority, completed: false }, ...manualAlerts]); }
+    setNewAlertMsg(''); setNewAlertDate(''); setNewAlertTime(''); setIsAddingAlert(false);
+  };
+
+  const deleteAlert = (id: string) => {
+    setManualAlerts(p => p.filter(a => a.id !== id));
+  };
+
+  // Stats
+  const monthlyStats = useMemo(() => {
+    const now = new Date();
+    const current = transactions.filter(t => new Date(t.date).getMonth() === now.getMonth() && new Date(t.date).getFullYear() === now.getFullYear());
+    const inc = current.filter(t => t.type === 'income').reduce((acc, t) => acc + (Number(t.amount)||0), 0);
+    const exp = current.filter(t => t.type === 'expense').reduce((acc, t) => acc + (Number(t.amount)||0), 0);
+    return { totalIncome: inc, totalExpense: exp, balance: inc - exp };
+  }, [transactions]);
+
+  const expenseChartData = useMemo(() => {
+    const now = new Date();
+    const currentExpenses = transactions.filter(t => t.type === 'expense' && new Date(t.date).getMonth() === now.getMonth());
+    const total = currentExpenses.reduce((acc, t) => acc + Number(t.amount), 0);
+    const grouped = currentExpenses.reduce((acc, t) => { 
+        const amount = Number(t.amount);
+        acc[t.category] = (acc[t.category] || 0) + amount; 
+        return acc; 
+    }, {} as Record<string, number>);
+    
+    return Object.entries(grouped).map(([name, value], index) => {
+      const val = Number(value);
+      return { 
+        name: String(name), // Force string to avoid [object Object]
+        value: val, 
+        percentage: total > 0 ? ((val / total) * 100).toFixed(1) : '0',
+        color: CHART_COLORS[index % CHART_COLORS.length] 
+      };
+    }).sort((a, b) => b.value - a.value);
+  }, [transactions]);
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'home': return (
+        <>
+          <WeatherWidget />
+          <div className="space-y-2">
+            <h3 className="font-bold text-white mb-2">Recenti</h3>
+            {transactions.slice(0, 10).map(t => (
+              <SwipeableItem key={t.id} onSwipeLeft={() => handleDeleteTrans(t.id)} onSwipeRight={() => { setEditingTransaction(t); setIsAddModalOpen(true); }} rightLabel="Modifica" rightIcon={<Edit2 size={24}/>}>
+                <div className="flex items-center justify-between p-4 h-[70px]">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-full ${t.type === 'expense' ? 'bg-red-950/40 text-red-400' : 'bg-emerald-950/40 text-emerald-400'}`}>{t.type === 'expense' ? <ArrowDownCircle size={20}/> : <ArrowUpCircle size={20}/>}</div>
+                    <div><p className="font-medium text-slate-200 text-sm">{String(t.description)}</p><p className="text-[10px] text-slate-500 capitalize">{String(t.category)}</p></div>
+                  </div>
+                  <span className={`font-bold ${t.type === 'expense' ? 'text-red-400' : 'text-emerald-400'}`}>{t.type === 'expense' ? '-' : '+'}€{(Number(t.amount)||0).toFixed(2)}</span>
+                </div>
+              </SwipeableItem>
+            ))}
+            {transactions.length === 0 && <p className="text-center text-slate-600 text-sm py-4">Nessuna transazione</p>}
+          </div>
+        </>
+      );
+      case 'shopping': return (
+        <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+          <div className="flex justify-between items-center mb-4">
+             <h3 className="font-bold text-white flex items-center gap-2"><ShoppingCart size={20} className="text-emerald-400"/> Lista Spesa</h3>
+             <button onClick={() => setIsShareModalOpen(true)} className="p-2 bg-slate-800 rounded-full text-indigo-400"><Share2 size={18}/></button>
+          </div>
+          <div className="flex gap-2 mb-4">
+            <input ref={shoppingInputRef} value={newShoppingItem} onChange={e => setNewShoppingItem(e.target.value)} placeholder="Prodotto..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none" onKeyDown={e => e.key === 'Enter' && handleAddList('shopping', newShoppingItem)}/>
+            <VoiceInput onResult={setNewShoppingItem} />
+            <button onClick={() => handleAddList('shopping', newShoppingItem)} className={`text-white p-2 rounded-lg ${editingListItemId ? 'bg-emerald-600' : 'bg-indigo-600'}`}>
+                {editingListItemId ? <Save size={20}/> : <Plus size={20}/>}
+            </button>
+          </div>
+          {shoppingList.map(i => (
+             <SwipeableItem key={i.id} onSwipeLeft={() => deleteList('shopping', i.id)} onSwipeRight={() => startEditingList('shopping', i)}>
+                <div className="flex items-center gap-3 p-4 h-[60px]">
+                   <button onClick={(e) => { e.stopPropagation(); toggleList('shopping', i.id); }} className="focus:outline-none">{i.completed ? <CheckCircle2 className="text-emerald-500" size={24}/> : <Circle className="text-slate-500" size={24}/>}</button>
+                   <span className={i.completed ? 'line-through text-slate-500' : 'text-white'}>{String(i.text)}</span>
+                </div>
+             </SwipeableItem>
+          ))}
+        </div>
+      );
+      case 'doit': return (
+        <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+          <h3 className="font-bold text-white mb-4 flex items-center gap-2"><ListTodo size={20} className="text-indigo-400"/> Cose da fare</h3>
+          <div className="flex gap-2 mb-4">
+            <input ref={todoInputRef} value={newTodoItem} onChange={e => setNewTodoItem(e.target.value)} placeholder="Attività..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none" onKeyDown={e => e.key === 'Enter' && handleAddList('todo', newTodoItem)}/>
+            <VoiceInput onResult={setNewTodoItem} />
+            <button onClick={() => handleAddList('todo', newTodoItem)} className={`text-white p-2 rounded-lg ${editingListItemId ? 'bg-emerald-600' : 'bg-indigo-600'}`}>
+                {editingListItemId ? <Save size={20}/> : <Plus size={20}/>}
+            </button>
+          </div>
+          {todoList.map(i => (
+             <SwipeableItem key={i.id} onSwipeLeft={() => deleteList('todo', i.id)} onSwipeRight={() => startEditingList('todo', i)}>
+                <div className="flex items-center gap-3 p-4 h-[60px]">
+                   <button onClick={(e) => { e.stopPropagation(); toggleList('todo', i.id); }} className="focus:outline-none">{i.completed ? <CheckCircle2 className="text-indigo-500" size={24}/> : <Circle className="text-slate-500" size={24}/>}</button>
+                   <span className={i.completed ? 'line-through text-slate-500' : 'text-white'}>{String(i.text)}</span>
+                </div>
+             </SwipeableItem>
+          ))}
+        </div>
+      );
+      case 'memos': return (
+        <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+           <div className="flex gap-2 mb-4">
+            <input ref={memoInputRef} value={newMemoItem} onChange={e => setNewMemoItem(e.target.value)} placeholder="Nota..." className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none" onKeyDown={e => e.key === 'Enter' && handleAddList('memo', newMemoItem)}/>
+            <VoiceInput onResult={setNewMemoItem} />
+            <button onClick={() => handleAddList('memo', newMemoItem)} className={`text-white p-2 rounded-lg ${editingListItemId ? 'bg-emerald-600' : 'bg-indigo-600'}`}>
+                {editingListItemId ? <Save size={20}/> : <Plus size={20}/>}
+            </button>
+          </div>
+          {memos.map(i => (
+             <SwipeableItem key={i.id} onSwipeLeft={() => deleteList('memo', i.id)} onSwipeRight={() => startEditingList('memo', i)}>
+                <div className="p-4"><p className="text-white text-sm">{String(i.text)}</p></div>
+             </SwipeableItem>
+          ))}
+        </div>
+      );
+      case 'alerts': return (
+        <div className="space-y-4">
+           {monthlyStats.balance < 0 && (
+             <div className="bg-slate-900/80 p-4 rounded-xl border-l-4 border-red-500 shadow-sm flex items-start gap-3">
+               <AlertTriangle className="text-red-500 shrink-0" size={20}/>
+               <div><h4 className="font-bold text-red-200 text-sm">Saldo Negativo!</h4></div>
+             </div>
+           )}
+           <div className="flex items-center justify-between mt-6 mb-2">
+             <h3 className="font-bold text-white flex gap-2"><Bell className="text-yellow-400"/> Promemoria</h3>
+             <button onClick={() => setIsAddingAlert(!isAddingAlert)} className="p-2 rounded-full bg-slate-800 text-slate-400"><Plus size={20}/></button>
+           </div>
+           {isAddingAlert && (
+             <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 mb-4 space-y-3">
+                 <div className="flex gap-2">
+                    <input value={newAlertMsg} onChange={e => setNewAlertMsg(e.target.value)} placeholder="Messaggio..." className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"/>
+                    <VoiceInput onResult={setNewAlertMsg} />
+                 </div>
+                 <div className="flex gap-2">
+                    <input type="date" value={newAlertDate} onChange={e => setNewAlertDate(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"/>
+                    <input type="time" value={newAlertTime} onChange={e => setNewAlertTime(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white"/>
+                 </div>
+                 <button onClick={handleSaveAlert} className="w-full bg-indigo-600 text-white py-2 rounded-lg">Salva</button>
+             </div>
+           )}
+           {manualAlerts.map(a => (
+               <div key={a.id} className="bg-slate-900/40 p-4 rounded-xl border-l-4 border-indigo-500">
+                    <div className="flex justify-between"><span className="text-white text-sm">{a.message}</span><button onClick={() => deleteAlert(a.id)}><Trash2 size={16} className="text-slate-500"/></button></div>
+                    <div className="text-[10px] text-slate-400 mt-1">{a.date} {a.time}</div>
+               </div>
+           ))}
+        </div>
+      );
+      case 'reports': return (
+        <div className="space-y-6">
+          <section className="bg-indigo-950/30 p-4 rounded-xl border border-indigo-500/20 relative">
+             <div className="flex justify-between items-center mb-2">
+               <div className="flex items-center gap-2 text-indigo-200 font-bold"><Sparkles size={16}/><span>AI Advisor</span></div>
+               <button onClick={async () => { setIsLoadingAi(true); setAiAdvice(await getFinancialAdvice(transactions, 'Generale')); setIsLoadingAi(false); }} disabled={isLoadingAi} className="text-[10px] bg-indigo-600 px-2 py-1 rounded text-white">{isLoadingAi ? '...' : 'Analizza'}</button>
+             </div>
+             <p className="text-xs text-indigo-100/80 leading-relaxed whitespace-pre-line">{String(aiAdvice || "Tocca Analizza per ricevere consigli.")}</p>
+          </section>
+          <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
+             <h3 className="font-bold text-white mb-4 flex items-center gap-2"><PieChartIcon size={20} className="text-indigo-400"/> Categorie</h3>
+             <div className="h-[300px] w-full">
+               <ResponsiveContainer width="100%" height="100%">
+                 <PieChart>
+                   <Pie data={expenseChartData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                     {expenseChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} stroke="#0f172a" strokeWidth={2}/>)}
+                   </Pie>
+                   <Tooltip content={<CustomTooltip />} />
+                   <Legend/>
+                 </PieChart>
+               </ResponsiveContainer>
+             </div>
+          </div>
+        </div>
+      );
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-200 pb-32 font-sans">
+      <ErrorBoundary>
+      <div className="max-w-lg mx-auto bg-slate-950 min-h-screen relative shadow-2xl">
+        <header className="px-6 pt-12 pb-6 bg-gradient-to-b from-indigo-950/20 to-slate-950">
+          <div className="flex justify-between items-start mb-6">
+            <div>
+                <h1 className="text-2xl font-black text-indigo-400">SpeseSmart</h1>
+                {currentUser && <p className="text-[10px] text-emerald-500 font-medium flex items-center gap-1"><Cloud size={10}/> {currentUser.email}</p>}
+            </div>
+            <button onClick={() => setIsSettingsOpen(true)} className="bg-slate-900 p-2 rounded-full border border-slate-800 text-slate-400 hover:text-white"><Settings size={20}/></button>
+          </div>
+          {activeTab === 'home' && (
+            <div className="flex gap-2 mb-2 animate-fade-in">
+                <StatsCard label="Entrate" amount={monthlyStats.totalIncome} type="income"/>
+                <StatsCard label="Uscite" amount={monthlyStats.totalExpense} type="expense"/>
+                <StatsCard label="Saldo" amount={monthlyStats.balance} type="balance" onClick={() => setIsBalanceHidden(!isBalanceHidden)} isHidden={isBalanceHidden}/>
+            </div>
+          )}
+        </header>
+
+        <main className="px-4 space-y-6">{renderContent()}</main>
+
+        {activeTab === 'home' && (
+          <div className="fixed bottom-24 right-4 z-50 animate-slide-up">
+            <button onClick={() => { setEditingTransaction(null); setIsAddModalOpen(true); }} className="w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg hover:scale-105 transition-all"><Plus size={28}/></button>
+          </div>
+        )}
+
+        <nav className="fixed bottom-0 left-0 right-0 bg-[#0E1629]/95 backdrop-blur-xl border-t border-slate-800 pb-[env(safe-area-inset-bottom)] z-40 max-w-lg mx-auto">
+          <div className="flex justify-around items-center h-16">
+              {[
+                {id:'home', icon:Wallet, l:'Wallet'}, {id:'shopping', icon:ShoppingCart, l:'Spesa'}, 
+                {id:'doit', icon:ListTodo, l:'Do It'}, {id:'memos', icon:StickyNote, l:'Memo'},
+                {id:'alerts', icon:Bell, l:'Avvisi'}, {id:'reports', icon:PieChartIcon, l:'Grafico'}
+              ].map(i => (
+                <button key={i.id} onClick={() => setActiveTab(i.id as any)} className={`flex flex-col items-center justify-center w-14 ${activeTab === i.id ? 'text-indigo-400' : 'text-slate-500'}`}>
+                  <i.icon size={22} className={activeTab === i.id ? 'fill-indigo-400/20' : ''}/><span className="text-[9px] font-bold mt-1">{i.l}</span>
+                </button>
+              ))}
+          </div>
+        </nav>
+
+        <ShareListModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} items={shoppingList} />
+        <AddModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onSave={handleSaveTrans} initialData={editingTransaction} expenseCategories={expenseCategories} incomeCategories={incomeCategories} onAddCategory={(c: string, t: any) => t === 'expense' ? setExpenseCategories([...expenseCategories, c]) : setIncomeCategories([...incomeCategories, c])} />
+        <SettingsModal 
+            isOpen={isSettingsOpen} 
+            onClose={() => setIsSettingsOpen(false)} 
+            onClearData={() => { if(confirm("Cancellare tutto?")) localStorage.clear(); location.reload(); }} 
+            userName={userName} setUserName={setUserName}
+            notificationsEnabled={notificationsEnabled} setNotificationsEnabled={setNotificationsEnabled}
+            startUpTab={startUpTab} setStartUpTab={setStartUpTab}
+            onSaveSettings={handleSaveSettings}
+            alarmVolume={alarmVolume} setAlarmVolume={setAlarmVolume}
+            supabaseUrl={supabaseUrl} setSupabaseUrl={setSupabaseUrl}
+            supabaseKey={supabaseKey} setSupabaseKey={setSupabaseKey}
+            onLogin={handleSupabaseAuth} onResetPassword={handleResetPassword} currentUser={currentUser} onLogout={handleLogout}
+        />
+      </div>
+      </ErrorBoundary>
+    </div>
+  );
+};
+
+let rootElement = document.getElementById('root');
+if (!rootElement) { rootElement = document.createElement('div'); rootElement.id = 'root'; document.body.appendChild(rootElement); }
+const root = createRoot(rootElement);
+root.render(<React.StrictMode><App /></React.StrictMode>);
