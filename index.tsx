@@ -93,13 +93,14 @@ const getSupabaseClient = () => {
 };
 
 const getFinancialAdvice = async (transactions: Transaction[], month: string) => {
+  // STRICT GUIDELINE: Use process.env.API_KEY exclusively.
   const apiKey = process.env.API_KEY;
-  if (!apiKey) return "API Key mancante. Configura process.env.API_KEY.";
+  if (!apiKey) return "API Key non configurata nel sistema (process.env.API_KEY).";
 
   const ai = new GoogleGenAI({ apiKey });
   if (transactions.length === 0) return "Non ci sono abbastanza dati per generare un'analisi completa.";
 
-  const summary = transactions.map(t => 
+  const summary = transactions.slice(0, 50).map(t => 
     `- ${t.date.split('T')[0]}: ${t.type === 'expense' ? 'Spesa' : 'Entrata'} di €${t.amount} per ${t.description} (${t.category})`
   ).join('\n');
 
@@ -119,9 +120,9 @@ const getFinancialAdvice = async (transactions: Transaction[], month: string) =>
       contents: prompt,
     });
     return response.text || "Analisi non disponibile.";
-  } catch (error) {
-    console.error(error);
-    return "Errore AI. Verifica la tua configurazione.";
+  } catch (error: any) {
+    console.error("AI Error:", error);
+    return `Errore AI: ${error.message || 'Sconosciuto'}`;
   }
 };
 
@@ -155,10 +156,12 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         <div className="p-6 bg-slate-950 min-h-screen text-slate-200 flex flex-col items-center justify-center text-center">
            <AlertTriangle size={48} className="text-red-500 mb-4"/>
            <h1 className="text-xl font-bold mb-2">Qualcosa è andato storto.</h1>
-           <p className="text-sm text-slate-400 mb-4">Potrebbe esserci un problema con i dati salvati.</p>
+           <p className="text-sm text-slate-400 mb-4">
+             Errore rilevato: {this.state.error?.message || String(this.state.error)}
+           </p>
            <button 
              onClick={() => { localStorage.clear(); location.reload(); }}
-             className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold"
+             className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-500 transition-colors"
            >
              Resetta Dati e Riavvia
            </button>
@@ -346,8 +349,10 @@ const VoiceInput = ({ onResult }: { onResult: (text: string) => void }) => {
         recognition.interimResults = false;
         recognition.onstart = () => setIsListening(true);
         recognition.onresult = (event: any) => {
-            const transcript = event.results[0][0].transcript;
-            if (transcript) onResult(transcript);
+            const transcript = event.results?.[0]?.[0]?.transcript;
+            if (transcript && typeof transcript === 'string') {
+              onResult(transcript);
+            }
             stopListening(); 
         };
         recognition.onerror = () => stopListening();
@@ -451,7 +456,7 @@ const CustomTooltip = ({ active, payload }: any) => {
       <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl shadow-xl z-50 animate-fade-in">
         <div className="flex items-center gap-2 mb-1">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: data.color }}></div>
-            <p className="font-bold text-slate-200 text-xs">{data.name}</p>
+            <p className="font-bold text-slate-200 text-xs">{String(data.name)}</p>
         </div>
         <div className="flex items-baseline gap-2">
             <p className="text-indigo-400 font-bold text-lg">
@@ -519,10 +524,14 @@ on public.transactions for delete to authenticated using (auth.uid() = user_id);
 
   const handleAuth = async () => {
       setAuthLoading(true);
-      if (authMode === 'reset') {
-          await onResetPassword(email);
-      } else {
-          await onLogin(email, password, authMode);
+      try {
+        if (authMode === 'reset') {
+            await onResetPassword(email);
+        } else {
+            await onLogin(email, password, authMode);
+        }
+      } catch(e) {
+          console.error(e);
       }
       setAuthLoading(false);
       if(authMode !== 'reset') { setEmail(''); setPassword(''); }
@@ -592,7 +601,7 @@ on public.transactions for delete to authenticated using (auth.uid() = user_id);
                       <div className="pt-2 border-t border-slate-800 animate-fade-in">
                           {currentUser ? (
                               <div className="text-center space-y-3">
-                                  <div className="flex items-center justify-center gap-2 text-emerald-400 font-bold text-sm"><CheckCircle2 size={16}/> {currentUser.email}</div>
+                                  <div className="flex items-center justify-center gap-2 text-emerald-400 font-bold text-sm"><CheckCircle2 size={16}/> {String(currentUser.email)}</div>
                                   <button onClick={onLogout} className="text-xs bg-red-900/30 text-red-400 px-4 py-2 rounded">Disconnetti</button>
                               </div>
                           ) : (
@@ -661,7 +670,7 @@ const AddModal = ({ isOpen, onClose, onSave, initialData, expenseCategories, inc
         setAmount(''); setDescription(''); setCategory(expenseCategories[0] || '');
       }
     }
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData, expenseCategories]);
 
   if (!isOpen) return null;
 
@@ -740,7 +749,7 @@ const App = () => {
   const [isBalanceHidden, setIsBalanceHidden] = useState(() => localStorage.getItem('isBalanceHidden') === 'true');
   const [userName, setUserName] = useState(() => localStorage.getItem('userName') || '');
 
-  // Safely Parse LocalStorage with strict type checks
+  // Strict JSON Parsing to avoid [object Object] errors
   const safeJsonParse = (key: string, defaultVal: any) => {
     try {
       const stored = localStorage.getItem(key);
@@ -755,15 +764,34 @@ const App = () => {
 
   const safeCategoriesParse = (key: string, defaultVal: string[]) => {
     const arr = safeJsonParse(key, defaultVal);
-    // Ensure all items are strings to prevent [object Object] errors
-    return arr.map((i: any) => typeof i === 'string' ? i : String(i));
+    // Filter out non-strings to prevent [object Object] rendering
+    return arr.filter((i: any) => typeof i === 'string');
   };
 
-  const [transactions, setTransactions] = useState<Transaction[]>(() => safeJsonParse('transactions', []));
-  const [shoppingList, setShoppingList] = useState<ListItem[]>(() => safeJsonParse('shoppingList', []));
-  const [todoList, setTodoList] = useState<ListItem[]>(() => safeJsonParse('todoList', []));
-  const [memos, setMemos] = useState<MemoItem[]>(() => safeJsonParse('memos', []));
-  const [manualAlerts, setManualAlerts] = useState<ManualAlert[]>(() => safeJsonParse('manualAlerts', []));
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    const raw = safeJsonParse('transactions', []);
+    return raw.filter((t: any) => t && typeof t === 'object' && typeof t.amount === 'number' && typeof t.description === 'string');
+  });
+
+  const [shoppingList, setShoppingList] = useState<ListItem[]>(() => {
+    const raw = safeJsonParse('shoppingList', []);
+    return raw.filter((i: any) => i && typeof i === 'object' && (typeof i.text === 'string' || typeof i.text === 'number'));
+  });
+
+  const [todoList, setTodoList] = useState<ListItem[]>(() => {
+    const raw = safeJsonParse('todoList', []);
+    return raw.filter((i: any) => i && typeof i === 'object' && (typeof i.text === 'string' || typeof i.text === 'number'));
+  });
+
+  const [memos, setMemos] = useState<MemoItem[]>(() => {
+     const raw = safeJsonParse('memos', []);
+     return raw.filter((i: any) => i && typeof i === 'object' && (typeof i.text === 'string'));
+  });
+
+  const [manualAlerts, setManualAlerts] = useState<ManualAlert[]>(() => {
+     const raw = safeJsonParse('manualAlerts', []);
+     return raw.filter((a: any) => a && typeof a === 'object' && typeof a.message === 'string');
+  });
   
   const [expenseCategories, setExpenseCategories] = useState<string[]>(() => safeCategoriesParse('expenseCategories', DEFAULT_EXPENSE_CATEGORIES));
   const [incomeCategories, setIncomeCategories] = useState<string[]>(() => safeCategoriesParse('incomeCategories', DEFAULT_INCOME_CATEGORIES));
@@ -834,19 +862,23 @@ const App = () => {
       const sb = getSupabaseClient();
       if (!sb) return alert("Configura prima URL e Key di Supabase!");
 
-      if (mode === 'register') {
-          const { data, error } = await sb.auth.signUp({ email: e, password: p });
-          if (error) alert(error.message || "Errore sconosciuto");
-          else alert("Registrazione effettuata! Controlla la tua email.");
-      } else {
-          const { data, error } = await sb.auth.signInWithPassword({ email: e, password: p });
-          if (error) alert(error.message || "Errore sconosciuto");
-          else {
-              setCurrentUser(data.user);
-              // Force reload from cloud
-              const { data: cloudData } = await sb.from('transactions').select('*').order('date', { ascending: false });
-              if(cloudData) setTransactions(cloudData as Transaction[]);
-          }
+      try {
+        if (mode === 'register') {
+            const { data, error } = await sb.auth.signUp({ email: e, password: p });
+            if (error) throw error;
+            else alert("Registrazione effettuata! Controlla la tua email.");
+        } else {
+            const { data, error } = await sb.auth.signInWithPassword({ email: e, password: p });
+            if (error) throw error;
+            else {
+                setCurrentUser(data.user);
+                // Force reload from cloud
+                const { data: cloudData } = await sb.from('transactions').select('*').order('date', { ascending: false });
+                if(cloudData) setTransactions(cloudData as Transaction[]);
+            }
+        }
+      } catch (err: any) {
+         alert(`Errore: ${err.message || String(err)}`);
       }
   };
 
@@ -1002,7 +1034,7 @@ const App = () => {
     return Object.entries(grouped).map(([name, value], index) => {
       const val = Number(value);
       return { 
-        name: String(name), // Force string
+        name: String(name), // Force string to avoid [object Object]
         value: val, 
         percentage: total > 0 ? ((val / total) * 100).toFixed(1) : '0',
         color: CHART_COLORS[index % CHART_COLORS.length] 
