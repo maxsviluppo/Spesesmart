@@ -444,6 +444,25 @@ const SwipeableItem = ({ children, onSwipeLeft, onSwipeRight, rightLabel="Modifi
   );
 };
 
+// Expandable Item for Todo List
+const ExpandableTodoItem = ({ item, onToggle }: { item: ListItem; onToggle: () => void }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div 
+      className={`flex items-center gap-3 p-4 transition-all duration-200 cursor-pointer ${expanded ? '' : 'h-[60px]'}`}
+      onDoubleClick={() => setExpanded(!expanded)}
+    >
+       <button onClick={(e) => { e.stopPropagation(); onToggle(); }} className="focus:outline-none shrink-0">
+          {item.completed ? <CheckCircle2 className="text-indigo-500" size={24}/> : <Circle className="text-slate-500" size={24}/>}
+       </button>
+       <span className={`text-sm leading-snug ${item.completed ? 'line-through text-slate-500' : 'text-white'} ${expanded ? 'whitespace-pre-wrap' : 'truncate'}`}>
+          {String(item.text)}
+       </span>
+    </div>
+  );
+};
+
 // Custom Tooltip for Chart
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
@@ -1096,10 +1115,7 @@ const App = () => {
           </div>
           {todoList.map(i => (
              <SwipeableItem key={i.id} onSwipeLeft={() => deleteList('todo', i.id)} onSwipeRight={() => startEditingList('todo', i)}>
-                <div className="flex items-center gap-3 p-4 h-[60px]">
-                   <button onClick={(e) => { e.stopPropagation(); toggleList('todo', i.id); }} className="focus:outline-none">{i.completed ? <CheckCircle2 className="text-indigo-500" size={24}/> : <Circle className="text-slate-500" size={24}/>}</button>
-                   <span className={i.completed ? 'line-through text-slate-500' : 'text-white'}>{String(i.text)}</span>
-                </div>
+                <ExpandableTodoItem item={i} onToggle={() => toggleList('todo', i.id)} />
              </SwipeableItem>
           ))}
         </div>
