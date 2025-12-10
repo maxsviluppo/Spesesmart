@@ -5,7 +5,7 @@ import {
   Wallet, PieChart as PieChartIcon, ArrowRight, Sparkles, CheckCircle2, Circle, Trash2, AlertTriangle, Info,
   ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut, Calendar, Clock, User, Key, Lock, ExternalLink, ChevronDown, ChevronUp, Mail,
   Sun, Cloud, CloudRain, CloudSnow, CloudLightning, MapPin, Droplets, ThermometerSun, Smartphone, Layout, Volume2, Eye, EyeOff, History,
-  Flag, XCircle, RefreshCcw, StickyNote, Share2, Copy, Database, LogIn, KeyRound, Terminal
+  Flag, XCircle, RefreshCcw, StickyNote, Share2, Copy, Database, LogIn, KeyRound, Terminal, RotateCcw, Download, Upload, FileJson
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
@@ -499,13 +499,21 @@ const StatsCard = ({ label, amount, type, onClick, isHidden }: any) => {
   );
 };
 
-// Settings Modal Updated with Password Reset
-const SettingsModal = ({ isOpen, onClose, onClearData, userName, setUserName, notificationsEnabled, setNotificationsEnabled, startUpTab, setStartUpTab, onSaveSettings, alarmVolume, setAlarmVolume, onTestSound, supabaseUrl, setSupabaseUrl, supabaseKey, setSupabaseKey, onLogin, onResetPassword, currentUser, onLogout }: any) => {
+// Settings Modal Updated with Password Reset & Demo Mode
+const SettingsModal = ({ 
+    isOpen, onClose, onClearData, userName, setUserName, 
+    notificationsEnabled, setNotificationsEnabled, startUpTab, setStartUpTab, 
+    onSaveSettings, alarmVolume, setAlarmVolume, onTestSound, 
+    supabaseUrl, setSupabaseUrl, supabaseKey, setSupabaseKey, 
+    onLogin, onResetPassword, currentUser, onLogout, onDemoLogin,
+    onExportData, onImportData 
+}: any) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authMode, setAuthMode] = useState<'login'|'register'|'reset'>('login');
   const [authLoading, setAuthLoading] = useState(false);
   const [showSql, setShowSql] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const SQL_SCHEMA = `
 -- Crea la tabella per le transazioni
@@ -557,6 +565,20 @@ on public.transactions for delete to authenticated using (auth.uid() = user_id);
       navigator.clipboard.writeText(SQL_SCHEMA);
       alert("Codice SQL copiato! Incollalo nell'SQL Editor di Supabase.");
   };
+  
+  const handleResetConfig = () => {
+    if(confirm("Vuoi resettare la configurazione Supabase? Dovrai reinserire URL e Key.")) {
+        setSupabaseUrl('');
+        setSupabaseKey('');
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+          onImportData(e.target.files[0]);
+          e.target.value = ''; // Reset
+      }
+  };
 
   if (!isOpen) return null;
   return (
@@ -584,11 +606,30 @@ on public.transactions for delete to authenticated using (auth.uid() = user_id);
           </div>
 
           <div className="space-y-3">
+             <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><FileJson size={14}/> Backup & Ripristino (Locale)</h3>
+             <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 space-y-3">
+                <p className="text-[10px] text-slate-400">Salva tutti i tuoi dati (transazioni, liste, categorie) in un file JSON o ripristinali.</p>
+                <div className="flex gap-2">
+                    <button onClick={onExportData} className="flex-1 bg-indigo-600/20 text-indigo-400 border border-indigo-600/50 hover:bg-indigo-600/30 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2">
+                        <Download size={14}/> Scarica Backup
+                    </button>
+                    <button onClick={() => fileInputRef.current?.click()} className="flex-1 bg-emerald-600/20 text-emerald-400 border border-emerald-600/50 hover:bg-emerald-600/30 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2">
+                        <Upload size={14}/> Ripristina
+                    </button>
+                    <input ref={fileInputRef} type="file" accept=".json" onChange={handleFileChange} className="hidden" />
+                </div>
+             </div>
+          </div>
+
+          <div className="space-y-3">
               <div className="flex justify-between items-center">
-                  <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Database size={14}/> Cloud & Sync (Supabase)</h3>
-                  <button onClick={() => setShowSql(!showSql)} className="text-[10px] text-indigo-400 flex items-center gap-1 hover:text-indigo-300">
-                      <Terminal size={12}/> {showSql ? 'Nascondi SQL' : 'Schema Database'}
-                  </button>
+                  <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Database size={14}/> Cloud & Sync</h3>
+                   <div className="flex gap-2">
+                       {supabaseUrl && <button onClick={handleResetConfig} className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1"><RotateCcw size={12}/> Reset Config</button>}
+                       <button onClick={() => setShowSql(!showSql)} className="text-[10px] text-indigo-400 flex items-center gap-1 hover:text-indigo-300">
+                           <Terminal size={12}/> {showSql ? 'Nascondi SQL' : 'Schema Database'}
+                       </button>
+                   </div>
               </div>
 
               {showSql && (
@@ -604,21 +645,33 @@ on public.transactions for delete to authenticated using (auth.uid() = user_id);
               )}
 
               <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 space-y-4">
-                  <div className="space-y-2">
-                      <label className="text-[10px] text-slate-500 uppercase">Project URL</label>
-                      <input type="text" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://your-project.supabase.co" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none"/>
-                  </div>
-                  <div className="space-y-2">
-                      <label className="text-[10px] text-slate-500 uppercase">Anon Key</label>
-                      <input type="password" value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="eyJh..." className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none"/>
-                  </div>
-
-                  {supabaseUrl && supabaseKey && (
-                      <div className="pt-2 border-t border-slate-800 animate-fade-in">
+                  {!supabaseUrl || !supabaseKey ? (
+                      <>
+                        <div className="space-y-2">
+                            <label className="text-[10px] text-slate-500 uppercase">Project URL</label>
+                            <input type="text" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://your-project.supabase.co" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none"/>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] text-slate-500 uppercase">Anon Key</label>
+                            <input type="password" value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="eyJh..." className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none"/>
+                        </div>
+                        <div className="pt-2 border-t border-slate-800 mt-2">
+                            <p className="text-[10px] text-center text-slate-500 mb-2">Non hai Supabase? Usa la modalità locale.</p>
+                            <button onClick={onDemoLogin} className="w-full bg-slate-800 text-slate-200 py-2 rounded text-xs font-bold hover:bg-slate-700 flex justify-center border border-slate-700">
+                                Entra come Utente Demo (Locale)
+                            </button>
+                        </div>
+                      </>
+                  ) : (
+                      <div className="animate-fade-in">
                           {currentUser ? (
                               <div className="text-center space-y-3">
-                                  <div className="flex items-center justify-center gap-2 text-emerald-400 font-bold text-sm"><CheckCircle2 size={16}/> {String(currentUser.email)}</div>
-                                  <button onClick={onLogout} className="text-xs bg-red-900/30 text-red-400 px-4 py-2 rounded">Disconnetti</button>
+                                  <div className="flex items-center justify-center gap-2 text-emerald-400 font-bold text-sm">
+                                      {currentUser.id === 'demo' ? <User size={16}/> : <CheckCircle2 size={16}/>} 
+                                      {String(currentUser.email)}
+                                  </div>
+                                  <div className="text-xs text-slate-500">{currentUser.id === 'demo' ? 'Modalità Locale (Nessun Cloud)' : 'Sincronizzato col Cloud'}</div>
+                                  <button onClick={onLogout} className="text-xs bg-red-900/30 text-red-400 px-4 py-2 rounded border border-red-900/50">Disconnetti</button>
                               </div>
                           ) : (
                               <div className="space-y-3">
@@ -658,7 +711,7 @@ on public.transactions for delete to authenticated using (auth.uid() = user_id);
           <button onClick={onSaveSettings} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-500 flex items-center justify-center gap-2"><Save size={20} /> Salva Impostazioni</button>
           
           <div className="pt-4 border-t border-slate-800">
-            <button onClick={onClearData} className="w-full py-3 bg-red-900/20 text-red-400 border border-red-900/50 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-900/30 transition-colors"><LogOut size={18} /> Resetta Dati App</button>
+            <button onClick={onClearData} className="w-full py-3 bg-red-900/20 text-red-400 border border-red-900/50 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-900/30 transition-colors"><Trash2 size={18} /> Resetta Dati App</button>
           </div>
         </div>
       </div>
@@ -860,9 +913,8 @@ const App = () => {
       const sb = getSupabaseClient();
       if(sb) {
         const { data: { user } } = await sb.auth.getUser();
-        setCurrentUser(user);
-        
         if (user) {
+          setCurrentUser(user);
           // Fetch Transactions from Cloud
           const { data, error } = await sb.from('transactions').select('*').order('date', { ascending: false });
           if (!error && data) {
@@ -875,6 +927,10 @@ const App = () => {
   }, [supabaseUrl, supabaseKey]); // Re-run if config changes
 
   const handleSupabaseAuth = async (e: string, p: string, mode: 'login'|'register') => {
+      // FORCE SAVE KEYS BEFORE AUTH
+      localStorage.setItem('supabaseUrl', supabaseUrl);
+      localStorage.setItem('supabaseKey', supabaseKey);
+
       const sb = getSupabaseClient();
       if (!sb) return alert("Configura prima URL e Key di Supabase!");
 
@@ -906,7 +962,16 @@ const App = () => {
       else alert("Email di recupero inviata! Controlla la posta.");
   };
 
+  const handleDemoLogin = () => {
+    setCurrentUser({ id: 'demo', email: 'utente@locale.demo', aud: 'authenticated' });
+    setIsSettingsOpen(false);
+  };
+
   const handleLogout = async () => {
+     if (currentUser?.id === 'demo') {
+         setCurrentUser(null);
+         return;
+     }
      const sb = getSupabaseClient();
      if(sb) await sb.auth.signOut();
      setCurrentUser(null);
@@ -921,6 +986,72 @@ const App = () => {
     localStorage.setItem('startUpTab', startUpTab);
     localStorage.setItem('notificationsEnabled', String(notificationsEnabled));
     setIsSettingsOpen(false);
+  };
+
+  const handleClearData = () => {
+    if(confirm("Sei sicuro? Questo cancellerà TUTTE le transazioni, liste e note LOCALI, ma manterrà la configurazione di Supabase e il tuo profilo.")) {
+        // Clear only data, NOT config
+        localStorage.removeItem('transactions');
+        localStorage.removeItem('shoppingList');
+        localStorage.removeItem('todoList');
+        localStorage.removeItem('memos');
+        localStorage.removeItem('manualAlerts');
+        
+        // Reset State
+        setTransactions([]);
+        setShoppingList([]);
+        setTodoList([]);
+        setMemos([]);
+        setManualAlerts([]);
+        
+        alert("Dati resettati.");
+    }
+  };
+
+  // EXPORT / IMPORT
+  const handleExportData = () => {
+      const data = {
+          transactions,
+          shoppingList,
+          todoList,
+          memos,
+          manualAlerts,
+          expenseCategories,
+          incomeCategories,
+          exportDate: new Date().toISOString(),
+          version: 1
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `spesesmart-backup-${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+  };
+
+  const handleImportData = (file: File) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+          try {
+              const text = e.target?.result as string;
+              const data = JSON.parse(text);
+              if (data.transactions && Array.isArray(data.transactions)) setTransactions(data.transactions);
+              if (data.shoppingList && Array.isArray(data.shoppingList)) setShoppingList(data.shoppingList);
+              if (data.todoList && Array.isArray(data.todoList)) setTodoList(data.todoList);
+              if (data.memos && Array.isArray(data.memos)) setMemos(data.memos);
+              if (data.manualAlerts && Array.isArray(data.manualAlerts)) setManualAlerts(data.manualAlerts);
+              if (data.expenseCategories && Array.isArray(data.expenseCategories)) setExpenseCategories(data.expenseCategories);
+              if (data.incomeCategories && Array.isArray(data.incomeCategories)) setIncomeCategories(data.incomeCategories);
+              alert("Ripristino completato con successo!");
+          } catch (err) {
+              alert("Errore nel file di backup: formato non valido.");
+              console.error(err);
+          }
+      };
+      reader.readAsText(file);
   };
 
   // CRUD TRANSACTIONS WITH SYNC
@@ -942,7 +1073,7 @@ const App = () => {
     }
 
     // Cloud Sync
-    if (currentUser) {
+    if (currentUser && currentUser.id !== 'demo') {
        const sb = getSupabaseClient();
        if (sb) {
           const payload = {
@@ -971,7 +1102,7 @@ const App = () => {
       setTransactions(p => p.filter(t => t.id !== id));
       
       // Cloud
-      if (currentUser) {
+      if (currentUser && currentUser.id !== 'demo') {
           const sb = getSupabaseClient();
           if (sb) await sb.from('transactions').delete().eq('id', id);
       }
@@ -1205,7 +1336,7 @@ const App = () => {
           <div className="flex justify-between items-start mb-6">
             <div>
                 <h1 className="text-2xl font-black text-indigo-400">SpeseSmart</h1>
-                {currentUser && <p className="text-[10px] text-emerald-500 font-medium flex items-center gap-1"><Cloud size={10}/> {currentUser.email}</p>}
+                {currentUser && <p className="text-[10px] text-emerald-500 font-medium flex items-center gap-1">{currentUser.id === 'demo' ? <User size={10}/> : <Cloud size={10}/>} {currentUser.email}</p>}
             </div>
             <button onClick={() => setIsSettingsOpen(true)} className="bg-slate-900 p-2 rounded-full border border-slate-800 text-slate-400 hover:text-white"><Settings size={20}/></button>
           </div>
@@ -1245,7 +1376,7 @@ const App = () => {
         <SettingsModal 
             isOpen={isSettingsOpen} 
             onClose={() => setIsSettingsOpen(false)} 
-            onClearData={() => { if(confirm("Cancellare tutto?")) localStorage.clear(); location.reload(); }} 
+            onClearData={handleClearData}
             userName={userName} setUserName={setUserName}
             notificationsEnabled={notificationsEnabled} setNotificationsEnabled={setNotificationsEnabled}
             startUpTab={startUpTab} setStartUpTab={setStartUpTab}
@@ -1254,6 +1385,9 @@ const App = () => {
             supabaseUrl={supabaseUrl} setSupabaseUrl={setSupabaseUrl}
             supabaseKey={supabaseKey} setSupabaseKey={setSupabaseKey}
             onLogin={handleSupabaseAuth} onResetPassword={handleResetPassword} currentUser={currentUser} onLogout={handleLogout}
+            onDemoLogin={handleDemoLogin}
+            onExportData={handleExportData}
+            onImportData={handleImportData}
         />
       </div>
       </ErrorBoundary>
