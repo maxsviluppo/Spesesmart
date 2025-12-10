@@ -12,13 +12,13 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 import { createClient } from '@supabase/supabase-js';
 
 // --- CONFIGURAZIONE DATABASE ---
-// ⚠️ IMPORTANTE: SOSTITUISCI LE SCRITTE TRA VIRGOLETTE QUI SOTTO CON I TUOI DATI SUPABASE ⚠️
+// ⚠️ IMPORTANTE: NON CARICARE QUESTO FILE SU GITHUB DOPO AVER INSERITO LE CHIAVI ⚠️
 // 1. Vai su Supabase > Settings > API
-// 2. Copia "Project URL" e incollalo qui sotto:
-const SUPABASE_URL = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpoZ3BjY216Z3llcnR3bnZ5aWF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5OTU4NDQsImV4cCI6MjA3OTU3MTg0NH0.A0WxSn-8JKpd4tXTxSxLQIoq3M-654vGpw_guAHpQQc"; 
+// 2. Copia "Project URL" (deve iniziare con https://...)
+const SUPABASE_URL = "INSERISCI_QUI_LA_TUA_URL_SUPABASE"; 
 
-// 3. Copia "anon" "public" Key e incollala qui sotto:
-const SUPABASE_KEY = "..O7iBQlZx6JrSGwgIpKSGgsLMvXpmxXsc-CayU0VPXDg";
+// 3. Copia "anon" "public" Key (deve iniziare con ey...)
+const SUPABASE_KEY = "INSERISCI_QUI_LA_TUA_KEY_SUPABASE";
 
 // --- TYPES ---
 export type TransactionType = 'expense' | 'income';
