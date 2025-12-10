@@ -12,9 +12,13 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 import { createClient } from '@supabase/supabase-js';
 
 // --- CONFIGURAZIONE DATABASE ---
-// INSERISCI QUI I TUOI DATI DI SUPABASE UNA VOLTA PER TUTTE
-const SUPABASE_URL = "INSERISCI_QUI_LA_TUA_URL_SUPABASE"; // Esempio: https://xyz.supabase.co
-const SUPABASE_KEY = "INSERISCI_QUI_LA_TUA_KEY_SUPABASE"; // Esempio: eyJhbGc...
+// ⚠️ IMPORTANTE: SOSTITUISCI LE SCRITTE TRA VIRGOLETTE QUI SOTTO CON I TUOI DATI SUPABASE ⚠️
+// 1. Vai su Supabase > Settings > API
+// 2. Copia "Project URL" e incollalo qui sotto:
+const SUPABASE_URL = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpoZ3BjY216Z3llcnR3bnZ5aWF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5OTU4NDQsImV4cCI6MjA3OTU3MTg0NH0.A0WxSn-8JKpd4tXTxSxLQIoq3M-654vGpw_guAHpQQc"; 
+
+// 3. Copia "anon" "public" Key e incollala qui sotto:
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpoZ3BjY216Z3llcnR3bnZ5aWF6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Mzk5NTg0NCwiZXhwIjoyMDc5NTcxODQ0fQ.O7iBQlZx6JrSGwgIpKSGgsLMvXpmxXsc-CayU0VPXDg";
 
 // --- TYPES ---
 export type TransactionType = 'expense' | 'income';
@@ -852,7 +856,11 @@ const App = () => {
 
   const handleSupabaseAuth = async (e: string, p: string, mode: 'login'|'register') => {
       const sb = getSupabaseClient();
-      if (!sb) return alert("Errore Configurazione: Inserisci le costanti SUPABASE_URL e KEY nel codice index.tsx.");
+      if (!sb) {
+          // Fallback user friendly alert if they didn't edit the code yet
+          alert("ATTENZIONE: Devi aprire il file index.tsx e inserire URL e KEY di Supabase nelle righe 20 e 21 per far funzionare il login.");
+          return;
+      }
 
       try {
         if (mode === 'register') {
