@@ -5,20 +5,15 @@ import {
   Wallet, PieChart as PieChartIcon, ArrowRight, Sparkles, CheckCircle2, Circle, Trash2, AlertTriangle, Info,
   ArrowUpCircle, ArrowDownCircle, Edit2, X, Check, Save, Mic, Settings, LogOut, Calendar, Clock, User, Key, Lock, ExternalLink, ChevronDown, ChevronUp, Mail,
   Sun, Cloud, CloudRain, CloudSnow, CloudLightning, MapPin, Droplets, ThermometerSun, Smartphone, Layout, Volume2, Eye, EyeOff, History,
-  Flag, XCircle, RefreshCcw, StickyNote, Share2, Copy, Database, LogIn, KeyRound, Terminal, RotateCcw, Download, Upload, FileJson
+  Flag, XCircle, RefreshCcw, StickyNote, Share2, Copy, Database, LogIn, KeyRound, Terminal, RotateCcw, Download, Upload, FileJson, ShieldAlert
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { createClient } from '@supabase/supabase-js';
 
-// --- CONFIGURAZIONE DATABASE ---
-// ⚠️ IMPORTANTE: NON CARICARE QUESTO FILE SU GITHUB DOPO AVER INSERITO LE CHIAVI ⚠️
-// 1. Vai su Supabase > Settings > API
-// 2. Copia "Project URL" (deve iniziare con https://...)
-const SUPABASE_URL = "INSERISCI_QUI_LA_TUA_URL_SUPABASE"; 
-
-// 3. Copia "anon" "public" Key (deve iniziare con ey...)
-const SUPABASE_KEY = "INSERISCI_QUI_LA_TUA_KEY_SUPABASE";
+// --- CONFIGURAZIONE DATABASE DINAMICA ---
+// Non scriviamo più le chiavi qui per sicurezza.
+// Le chiavi verranno lette dalla memoria del browser (localStorage).
 
 // --- TYPES ---
 export type TransactionType = 'expense' | 'income';
@@ -86,15 +81,15 @@ const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#e
 
 // --- SERVICES ---
 
-// Helper per Supabase Client (Hardcoded)
+// Helper per Supabase Client (Dinamico)
 const getSupabaseClient = () => {
-  // Controllo base per evitare crash se l'utente non ha configurato il codice
-  if (!SUPABASE_URL || !SUPABASE_KEY || SUPABASE_URL.includes("INSERISCI_QUI")) {
-    console.warn("Supabase non configurato nel codice.");
-    return null;
-  }
+  const url = localStorage.getItem('sb_url');
+  const key = localStorage.getItem('sb_key');
+
+  if (!url || !key) return null;
+
   try {
-      return createClient(SUPABASE_URL, SUPABASE_KEY);
+      return createClient(url, key);
   } catch(e) {
       console.error("Supabase init error", e);
       return null;
@@ -179,6 +174,73 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 }
 
 // --- COMPONENTS ---
+
+// Setup Wizard Component (Per inserire le chiavi in sicurezza)
+const SetupWizard = ({ onComplete }: { onComplete: () => void }) => {
+  const [url, setUrl] = useState('');
+  const [key, setKey] = useState('');
+
+  const handleSave = () => {
+    if (!url.startsWith('https://')) {
+      alert("L'URL del progetto deve iniziare con https://");
+      return;
+    }
+    if (key.length < 20) {
+      alert("La chiave API sembra troppo corta.");
+      return;
+    }
+    localStorage.setItem('sb_url', url.trim());
+    localStorage.setItem('sb_key', key.trim());
+    onComplete();
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
+      <div className="bg-slate-900 w-full max-w-md p-8 rounded-2xl border border-slate-800 shadow-2xl">
+        <div className="flex justify-center mb-6">
+          <div className="bg-indigo-500/20 p-4 rounded-full">
+            <ShieldAlert size={40} className="text-indigo-400" />
+          </div>
+        </div>
+        <h1 className="text-2xl font-bold text-white text-center mb-2">Configurazione Sicura</h1>
+        <p className="text-slate-400 text-center text-sm mb-6">
+          Per evitare di esporre le tue chiavi su GitHub, inseriscile qui. Verranno salvate solo nel tuo browser.
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase">Supabase Project URL</label>
+            <input 
+              value={url} 
+              onChange={e => setUrl(e.target.value)} 
+              placeholder="https://xyz.supabase.co" 
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white mt-1"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase">Supabase Public Anon Key</label>
+            <input 
+              value={key} 
+              onChange={e => setKey(e.target.value)} 
+              placeholder="eyJhbG..." 
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white mt-1"
+              type="password"
+            />
+          </div>
+          <button 
+            onClick={handleSave}
+            className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-500 mt-4"
+          >
+            Salva e Avvia App
+          </button>
+        </div>
+        <p className="text-[10px] text-slate-600 text-center mt-4">
+          Trovi questi dati in Supabase &gt; Project Settings &gt; API.
+        </p>
+      </div>
+    </div>
+  );
+};
 
 // Share List Modal
 const ShareListModal = ({ isOpen, onClose, items }: { isOpen: boolean; onClose: () => void; items: ListItem[] }) => {
@@ -514,7 +576,7 @@ const SettingsModal = ({
     notificationsEnabled, setNotificationsEnabled, startUpTab, setStartUpTab, 
     onSaveSettings, alarmVolume, setAlarmVolume, onTestSound, 
     onLogin, onResetPassword, currentUser, onLogout, onDemoLogin,
-    onExportData, onImportData 
+    onExportData, onImportData, onResetConfig
 }: any) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -642,8 +704,9 @@ const SettingsModal = ({
 
           <button onClick={onSaveSettings} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-500 flex items-center justify-center gap-2"><Save size={20} /> Salva Impostazioni</button>
           
-          <div className="pt-4 border-t border-slate-800">
-            <button onClick={onClearData} className="w-full py-3 bg-red-900/20 text-red-400 border border-red-900/50 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-900/30 transition-colors"><Trash2 size={18} /> Resetta Dati App</button>
+          <div className="pt-4 border-t border-slate-800 space-y-2">
+            <button onClick={onResetConfig} className="w-full py-2 bg-yellow-900/20 text-yellow-400 border border-yellow-900/50 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-yellow-900/30 transition-colors text-xs"><RotateCcw size={16} /> Cambia API Keys</button>
+            <button onClick={onClearData} className="w-full py-2 bg-red-900/20 text-red-400 border border-red-900/50 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-900/30 transition-colors text-xs"><Trash2 size={16} /> Resetta Dati App</button>
           </div>
         </div>
       </div>
@@ -737,6 +800,8 @@ const AddModal = ({ isOpen, onClose, onSave, initialData, expenseCategories, inc
 // --- MAIN APP ---
 
 const App = () => {
+  const [isConfigured, setIsConfigured] = useState(() => !!localStorage.getItem('sb_url') && !!localStorage.getItem('sb_key'));
+  
   const [startUpTab, setStartUpTab] = useState(() => localStorage.getItem('startUpTab') || 'home');
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => localStorage.getItem('notificationsEnabled') === 'true');
   const [alarmVolume, setAlarmVolume] = useState(() => parseFloat(localStorage.getItem('alarmVolume') || '0.5'));
@@ -837,6 +902,8 @@ const App = () => {
 
   // DB SYNC: Fetch on Login
   useEffect(() => {
+    if (!isConfigured) return;
+
     const fetchCloudData = async () => {
       const sb = getSupabaseClient();
       if(sb) {
@@ -852,13 +919,12 @@ const App = () => {
       }
     };
     fetchCloudData();
-  }, []); // Run once on mount
+  }, [isConfigured]); // Run when configured
 
   const handleSupabaseAuth = async (e: string, p: string, mode: 'login'|'register') => {
       const sb = getSupabaseClient();
       if (!sb) {
-          // Fallback user friendly alert if they didn't edit the code yet
-          alert("ATTENZIONE: Devi aprire il file index.tsx e inserire URL e KEY di Supabase nelle righe 20 e 21 per far funzionare il login.");
+          alert("Configurazione mancante. Riavvia l'app.");
           return;
       }
 
@@ -939,6 +1005,15 @@ const App = () => {
         setManualAlerts([]);
         
         alert("Dati resettati.");
+    }
+  };
+
+  const handleResetConfig = () => {
+    if (confirm("Vuoi cancellare le chiavi API salvate e reinserirle?")) {
+      localStorage.removeItem('sb_url');
+      localStorage.removeItem('sb_key');
+      setIsConfigured(false);
+      setIsSettingsOpen(false);
     }
   };
 
@@ -1262,6 +1337,10 @@ const App = () => {
     }
   };
 
+  if (!isConfigured) {
+    return <SetupWizard onComplete={() => setIsConfigured(true)} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 pb-32 font-sans">
       <ErrorBoundary>
@@ -1320,6 +1399,7 @@ const App = () => {
             onDemoLogin={handleDemoLogin}
             onExportData={handleExportData}
             onImportData={handleImportData}
+            onResetConfig={handleResetConfig}
         />
       </div>
       </ErrorBoundary>
