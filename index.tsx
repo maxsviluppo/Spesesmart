@@ -234,9 +234,23 @@ const SetupWizard = ({ onComplete }: { onComplete: () => void }) => {
             Salva e Avvia App
           </button>
         </div>
-        <p className="text-[10px] text-slate-600 text-center mt-4">
-          Trovi questi dati in Supabase &gt; Project Settings &gt; API.
-        </p>
+        
+        <div className="mt-6 pt-6 border-t border-slate-800 text-center space-y-2">
+            <p className="text-[10px] text-slate-500">
+            Non sai dove trovare questi dati?
+            </p>
+            <p className="text-xs text-slate-400">
+                Vai su <strong>Settings</strong> &gt; <strong>API</strong> nel tuo progetto Supabase.
+            </p>
+            <a 
+                href="https://supabase.com/dashboard" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-indigo-400 text-xs font-bold hover:text-indigo-300 mt-2"
+            >
+                <ExternalLink size={14} /> Apri Dashboard Supabase
+            </a>
+        </div>
       </div>
     </div>
   );
