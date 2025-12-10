@@ -11,6 +11,11 @@ import { GoogleGenAI } from "@google/genai";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { createClient } from '@supabase/supabase-js';
 
+// --- CONFIGURAZIONE DATABASE ---
+// INSERISCI QUI I TUOI DATI DI SUPABASE UNA VOLTA PER TUTTE
+const SUPABASE_URL = "INSERISCI_QUI_LA_TUA_URL_SUPABASE"; // Esempio: https://xyz.supabase.co
+const SUPABASE_KEY = "INSERISCI_QUI_LA_TUA_KEY_SUPABASE"; // Esempio: eyJhbGc...
+
 // --- TYPES ---
 export type TransactionType = 'expense' | 'income';
 
@@ -77,19 +82,19 @@ const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#e
 
 // --- SERVICES ---
 
-// Helper per Supabase Client (Dinamico)
+// Helper per Supabase Client (Hardcoded)
 const getSupabaseClient = () => {
-  const url = localStorage.getItem('supabaseUrl');
-  const key = localStorage.getItem('supabaseKey');
-  if (url && key) {
-    try {
-        return createClient(url.trim(), key.trim());
-    } catch(e) {
-        console.error("Supabase init error", e);
-        return null;
-    }
+  // Controllo base per evitare crash se l'utente non ha configurato il codice
+  if (!SUPABASE_URL || !SUPABASE_KEY || SUPABASE_URL.includes("INSERISCI_QUI")) {
+    console.warn("Supabase non configurato nel codice.");
+    return null;
   }
-  return null;
+  try {
+      return createClient(SUPABASE_URL, SUPABASE_KEY);
+  } catch(e) {
+      console.error("Supabase init error", e);
+      return null;
+  }
 };
 
 const getFinancialAdvice = async (transactions: Transaction[], month: string) => {
@@ -504,7 +509,6 @@ const SettingsModal = ({
     isOpen, onClose, onClearData, userName, setUserName, 
     notificationsEnabled, setNotificationsEnabled, startUpTab, setStartUpTab, 
     onSaveSettings, alarmVolume, setAlarmVolume, onTestSound, 
-    supabaseUrl, setSupabaseUrl, supabaseKey, setSupabaseKey, 
     onLogin, onResetPassword, currentUser, onLogout, onDemoLogin,
     onExportData, onImportData 
 }: any) => {
@@ -512,39 +516,7 @@ const SettingsModal = ({
   const [password, setPassword] = useState('');
   const [authMode, setAuthMode] = useState<'login'|'register'|'reset'>('login');
   const [authLoading, setAuthLoading] = useState(false);
-  const [showSql, setShowSql] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const SQL_SCHEMA = `
--- Crea la tabella per le transazioni
-create table public.transactions (
-  id uuid not null default gen_random_uuid(),
-  user_id uuid not null references auth.users on delete cascade,
-  amount numeric not null,
-  description text not null,
-  category text not null,
-  type text not null,
-  date timestamptz not null default now(),
-  created_at timestamptz default now(),
-  primary key (id)
-);
-
--- Abilita la sicurezza (Row Level Security)
-alter table public.transactions enable row level security;
-
--- Crea le policy per permettere agli utenti di vedere solo i propri dati
-create policy "Users can read their own transactions"
-on public.transactions for select to authenticated using (auth.uid() = user_id);
-
-create policy "Users can insert their own transactions"
-on public.transactions for insert to authenticated with check (auth.uid() = user_id);
-
-create policy "Users can update their own transactions"
-on public.transactions for update to authenticated using (auth.uid() = user_id);
-
-create policy "Users can delete their own transactions"
-on public.transactions for delete to authenticated using (auth.uid() = user_id);
-  `.trim();
 
   const handleAuth = async () => {
       setAuthLoading(true);
@@ -561,18 +533,6 @@ on public.transactions for delete to authenticated using (auth.uid() = user_id);
       if(authMode !== 'reset') { setEmail(''); setPassword(''); }
   };
 
-  const copySql = () => {
-      navigator.clipboard.writeText(SQL_SCHEMA);
-      alert("Codice SQL copiato! Incollalo nell'SQL Editor di Supabase.");
-  };
-  
-  const handleResetConfig = () => {
-    if(confirm("Vuoi resettare la configurazione Supabase? Dovrai reinserire URL e Key.")) {
-        setSupabaseUrl('');
-        setSupabaseKey('');
-    }
-  };
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
           onImportData(e.target.files[0]);
@@ -585,7 +545,7 @@ on public.transactions for delete to authenticated using (auth.uid() = user_id);
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
       <div className="bg-slate-900 w-full max-w-md rounded-2xl border border-slate-800 overflow-hidden animate-slide-up max-h-[85vh] overflow-y-auto no-scrollbar">
         <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900 sticky top-0 z-10">
-            <h2 className="font-bold text-white flex items-center gap-2"><Settings size={20}/> Configurazioni</h2>
+            <h2 className="font-bold text-white flex items-center gap-2"><Settings size={20}/> Impostazioni</h2>
             <button onClick={onClose}><X size={24} className="text-slate-400" /></button>
         </div>
         <div className="p-6 space-y-8">
@@ -623,81 +583,49 @@ on public.transactions for delete to authenticated using (auth.uid() = user_id);
 
           <div className="space-y-3">
               <div className="flex justify-between items-center">
-                  <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Database size={14}/> Cloud & Sync</h3>
-                   <div className="flex gap-2">
-                       {supabaseUrl && <button onClick={handleResetConfig} className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1"><RotateCcw size={12}/> Reset Config</button>}
-                       <button onClick={() => setShowSql(!showSql)} className="text-[10px] text-indigo-400 flex items-center gap-1 hover:text-indigo-300">
-                           <Terminal size={12}/> {showSql ? 'Nascondi SQL' : 'Schema Database'}
-                       </button>
-                   </div>
+                  <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Database size={14}/> Account</h3>
               </div>
 
-              {showSql && (
-                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 animate-fade-in">
-                      <div className="flex justify-between items-center mb-2">
-                        <p className="text-[10px] text-slate-400">Esegui questo script nell'SQL Editor di Supabase per creare le tabelle.</p>
-                        <button onClick={copySql} className="text-xs bg-indigo-600 text-white px-2 py-1 rounded flex items-center gap-1"><Copy size={12}/> Copia</button>
-                      </div>
-                      <pre className="text-[10px] text-slate-300 overflow-x-auto p-2 bg-slate-900 rounded border border-slate-800 font-mono">
-                          {SQL_SCHEMA}
-                      </pre>
-                  </div>
-              )}
-
               <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 space-y-4">
-                  {!supabaseUrl || !supabaseKey ? (
-                      <>
-                        <div className="space-y-2">
-                            <label className="text-[10px] text-slate-500 uppercase">Project URL</label>
-                            <input type="text" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://your-project.supabase.co" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none"/>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] text-slate-500 uppercase">Anon Key</label>
-                            <input type="password" value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="eyJh..." className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none"/>
-                        </div>
-                        <div className="pt-2 border-t border-slate-800 mt-2">
-                            <p className="text-[10px] text-center text-slate-500 mb-2">Non hai Supabase? Usa la modalità locale.</p>
-                            <button onClick={onDemoLogin} className="w-full bg-slate-800 text-slate-200 py-2 rounded text-xs font-bold hover:bg-slate-700 flex justify-center border border-slate-700">
-                                Entra come Utente Demo (Locale)
-                            </button>
-                        </div>
-                      </>
+                  {currentUser ? (
+                      <div className="text-center space-y-3">
+                          <div className="flex items-center justify-center gap-2 text-emerald-400 font-bold text-sm">
+                              {currentUser.id === 'demo' ? <User size={16}/> : <CheckCircle2 size={16}/>} 
+                              {String(currentUser.email)}
+                          </div>
+                          <div className="text-xs text-slate-500">{currentUser.id === 'demo' ? 'Modalità Locale (Nessun Cloud)' : 'Sincronizzato col Cloud'}</div>
+                          <button onClick={onLogout} className="text-xs bg-red-900/30 text-red-400 px-4 py-2 rounded border border-red-900/50">Disconnetti</button>
+                      </div>
                   ) : (
-                      <div className="animate-fade-in">
-                          {currentUser ? (
-                              <div className="text-center space-y-3">
-                                  <div className="flex items-center justify-center gap-2 text-emerald-400 font-bold text-sm">
-                                      {currentUser.id === 'demo' ? <User size={16}/> : <CheckCircle2 size={16}/>} 
-                                      {String(currentUser.email)}
-                                  </div>
-                                  <div className="text-xs text-slate-500">{currentUser.id === 'demo' ? 'Modalità Locale (Nessun Cloud)' : 'Sincronizzato col Cloud'}</div>
-                                  <button onClick={onLogout} className="text-xs bg-red-900/30 text-red-400 px-4 py-2 rounded border border-red-900/50">Disconnetti</button>
-                              </div>
-                          ) : (
-                              <div className="space-y-3">
-                                  <div className="flex gap-2">
-                                      <button onClick={() => setAuthMode('login')} className={`flex-1 text-xs py-1.5 rounded ${authMode==='login' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>Accedi</button>
-                                      <button onClick={() => setAuthMode('register')} className={`flex-1 text-xs py-1.5 rounded ${authMode==='register' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>Registrati</button>
-                                  </div>
-                                  
-                                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none"/>
-                                  
-                                  {authMode !== 'reset' && (
-                                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none"/>
-                                  )}
-
-                                  {authMode === 'login' && (
-                                      <button onClick={() => setAuthMode('reset')} className="text-[10px] text-indigo-400 hover:underline flex items-center gap-1 w-full justify-end">
-                                          <KeyRound size={10}/> Password dimenticata?
-                                      </button>
-                                  )}
-
-                                  <button onClick={handleAuth} disabled={authLoading} className="w-full bg-emerald-600 text-white py-2 rounded text-xs font-bold hover:bg-emerald-500 flex justify-center">
-                                      {authLoading ? 'Attendi...' : (authMode === 'login' ? 'Entra nel Cloud' : authMode === 'reset' ? 'Invia Email Recupero' : 'Crea Account')}
-                                  </button>
-                                  {authMode === 'reset' && <button onClick={() => setAuthMode('login')} className="text-center w-full text-[10px] text-slate-500 hover:text-slate-300">Torna al Login</button>}
-                              </div>
+                      <div className="space-y-3">
+                          <p className="text-[10px] text-slate-400 text-center mb-2">Accedi per sincronizzare i tuoi dati.</p>
+                          <div className="flex gap-2">
+                              <button onClick={() => setAuthMode('login')} className={`flex-1 text-xs py-1.5 rounded ${authMode==='login' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>Accedi</button>
+                              <button onClick={() => setAuthMode('register')} className={`flex-1 text-xs py-1.5 rounded ${authMode==='register' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>Registrati</button>
+                          </div>
+                          
+                          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none"/>
+                          
+                          {authMode !== 'reset' && (
+                            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-white outline-none"/>
                           )}
+
+                          {authMode === 'login' && (
+                              <button onClick={() => setAuthMode('reset')} className="text-[10px] text-indigo-400 hover:underline flex items-center gap-1 w-full justify-end">
+                                  <KeyRound size={10}/> Password dimenticata?
+                              </button>
+                          )}
+
+                          <button onClick={handleAuth} disabled={authLoading} className="w-full bg-emerald-600 text-white py-2 rounded text-xs font-bold hover:bg-emerald-500 flex justify-center">
+                              {authLoading ? 'Attendi...' : (authMode === 'login' ? 'Entra nel Cloud' : authMode === 'reset' ? 'Invia Email Recupero' : 'Crea Account')}
+                          </button>
+                          {authMode === 'reset' && <button onClick={() => setAuthMode('login')} className="text-center w-full text-[10px] text-slate-500 hover:text-slate-300">Torna al Login</button>}
+                          
+                          <div className="pt-2 border-t border-slate-800 mt-2">
+                             <button onClick={onDemoLogin} className="w-full bg-slate-800 text-slate-200 py-2 rounded text-xs font-bold hover:bg-slate-700 flex justify-center border border-slate-700">
+                                Entra come Utente Demo (Locale)
+                             </button>
+                          </div>
                       </div>
                   )}
               </div>
@@ -811,8 +739,6 @@ const App = () => {
   const [activeTab, setActiveTab] = useState<'home' | 'shopping' | 'doit' | 'alerts' | 'reports' | 'memos'>(startUpTab as any);
   
   // Supabase Config
-  const [supabaseUrl, setSupabaseUrl] = useState(() => localStorage.getItem('supabaseUrl') || '');
-  const [supabaseKey, setSupabaseKey] = useState(() => localStorage.getItem('supabaseKey') || '');
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   const [isBalanceHidden, setIsBalanceHidden] = useState(() => localStorage.getItem('isBalanceHidden') === 'true');
@@ -904,8 +830,6 @@ const App = () => {
   useEffect(() => { localStorage.setItem('userName', userName); }, [userName]);
   useEffect(() => { localStorage.setItem('alarmVolume', alarmVolume.toString()); }, [alarmVolume]);
   useEffect(() => { localStorage.setItem('isBalanceHidden', String(isBalanceHidden)); }, [isBalanceHidden]);
-  useEffect(() => { localStorage.setItem('supabaseUrl', supabaseUrl); }, [supabaseUrl]);
-  useEffect(() => { localStorage.setItem('supabaseKey', supabaseKey); }, [supabaseKey]);
 
   // DB SYNC: Fetch on Login
   useEffect(() => {
@@ -924,30 +848,11 @@ const App = () => {
       }
     };
     fetchCloudData();
-  }, [supabaseUrl, supabaseKey]); // Re-run if config changes
+  }, []); // Run once on mount
 
   const handleSupabaseAuth = async (e: string, p: string, mode: 'login'|'register') => {
-      // Clean inputs to remove accidental whitespace (common in copy/paste)
-      const cleanUrl = supabaseUrl.trim();
-      const cleanKey = supabaseKey.trim();
-
-      if (!cleanUrl) return alert("Inserisci l'URL del progetto Supabase");
-      if (!cleanKey) return alert("Inserisci la Key (Anon) di Supabase");
-      if (!cleanUrl.startsWith('https://')) return alert("L'URL del progetto deve iniziare con 'https://'");
-
-      // Update state and storage with clean values
-      setSupabaseUrl(cleanUrl);
-      setSupabaseKey(cleanKey);
-      localStorage.setItem('supabaseUrl', cleanUrl);
-      localStorage.setItem('supabaseKey', cleanKey);
-
-      // Create client directly to test creds immediately, bypassing any localStorage delay
-      let sb;
-      try {
-          sb = createClient(cleanUrl, cleanKey);
-      } catch (err: any) {
-          return alert("Errore nella configurazione Supabase: " + err.message);
-      }
+      const sb = getSupabaseClient();
+      if (!sb) return alert("Errore Configurazione: Inserisci le costanti SUPABASE_URL e KEY nel codice index.tsx.");
 
       try {
         if (mode === 'register') {
@@ -971,18 +876,15 @@ const App = () => {
   };
 
   const handleResetPassword = async (email: string) => {
-      const cleanUrl = supabaseUrl.trim();
-      const cleanKey = supabaseKey.trim();
-      
-      if (!cleanUrl || !cleanKey) return alert("Configura URL e Key prima di resettare la password.");
+      const sb = getSupabaseClient();
+      if (!sb) return alert("Configurazione Supabase mancante.");
 
       try {
-        const sb = createClient(cleanUrl, cleanKey);
         const { error } = await sb.auth.resetPasswordForEmail(email);
         if (error) alert("Errore: " + (error.message || "Sconosciuto"));
         else alert("Email di recupero inviata! Controlla la posta.");
       } catch(e) {
-          alert("Configurazione Supabase non valida.");
+          alert("Errore invio email.");
       }
   };
 
@@ -1406,8 +1308,6 @@ const App = () => {
             startUpTab={startUpTab} setStartUpTab={setStartUpTab}
             onSaveSettings={handleSaveSettings}
             alarmVolume={alarmVolume} setAlarmVolume={setAlarmVolume}
-            supabaseUrl={supabaseUrl} setSupabaseUrl={setSupabaseUrl}
-            supabaseKey={supabaseKey} setSupabaseKey={setSupabaseKey}
             onLogin={handleSupabaseAuth} onResetPassword={handleResetPassword} currentUser={currentUser} onLogout={handleLogout}
             onDemoLogin={handleDemoLogin}
             onExportData={handleExportData}
