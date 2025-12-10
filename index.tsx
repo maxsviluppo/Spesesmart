@@ -83,7 +83,7 @@ const getSupabaseClient = () => {
   const key = localStorage.getItem('supabaseKey');
   if (url && key) {
     try {
-        return createClient(url, key);
+        return createClient(url.trim(), key.trim());
     } catch(e) {
         console.error("Supabase init error", e);
         return null;
@@ -927,39 +927,63 @@ const App = () => {
   }, [supabaseUrl, supabaseKey]); // Re-run if config changes
 
   const handleSupabaseAuth = async (e: string, p: string, mode: 'login'|'register') => {
-      // FORCE SAVE KEYS BEFORE AUTH
-      localStorage.setItem('supabaseUrl', supabaseUrl);
-      localStorage.setItem('supabaseKey', supabaseKey);
+      // Clean inputs to remove accidental whitespace (common in copy/paste)
+      const cleanUrl = supabaseUrl.trim();
+      const cleanKey = supabaseKey.trim();
 
-      const sb = getSupabaseClient();
-      if (!sb) return alert("Configura prima URL e Key di Supabase!");
+      if (!cleanUrl) return alert("Inserisci l'URL del progetto Supabase");
+      if (!cleanKey) return alert("Inserisci la Key (Anon) di Supabase");
+      if (!cleanUrl.startsWith('https://')) return alert("L'URL del progetto deve iniziare con 'https://'");
+
+      // Update state and storage with clean values
+      setSupabaseUrl(cleanUrl);
+      setSupabaseKey(cleanKey);
+      localStorage.setItem('supabaseUrl', cleanUrl);
+      localStorage.setItem('supabaseKey', cleanKey);
+
+      // Create client directly to test creds immediately, bypassing any localStorage delay
+      let sb;
+      try {
+          sb = createClient(cleanUrl, cleanKey);
+      } catch (err: any) {
+          return alert("Errore nella configurazione Supabase: " + err.message);
+      }
 
       try {
         if (mode === 'register') {
             const { data, error } = await sb.auth.signUp({ email: e, password: p });
             if (error) throw error;
-            else alert("Registrazione effettuata! Controlla la tua email.");
+            else alert("Registrazione effettuata! Controlla la tua email per confermare.");
         } else {
             const { data, error } = await sb.auth.signInWithPassword({ email: e, password: p });
             if (error) throw error;
             else {
                 setCurrentUser(data.user);
-                // Force reload from cloud
+                // Force reload from cloud using the new authenticated client
                 const { data: cloudData } = await sb.from('transactions').select('*').order('date', { ascending: false });
                 if(cloudData) setTransactions(cloudData as Transaction[]);
+                setIsSettingsOpen(false);
             }
         }
       } catch (err: any) {
-         alert(`Errore: ${err.message || String(err)}`);
+         alert(`Errore Login/Registrazione: ${err.message || String(err)}`);
       }
   };
 
   const handleResetPassword = async (email: string) => {
-      const sb = getSupabaseClient();
-      if (!sb) return alert("Configura prima Supabase!");
-      const { error } = await sb.auth.resetPasswordForEmail(email);
-      if (error) alert("Errore: " + (error.message || "Sconosciuto"));
-      else alert("Email di recupero inviata! Controlla la posta.");
+      const cleanUrl = supabaseUrl.trim();
+      const cleanKey = supabaseKey.trim();
+      
+      if (!cleanUrl || !cleanKey) return alert("Configura URL e Key prima di resettare la password.");
+
+      try {
+        const sb = createClient(cleanUrl, cleanKey);
+        const { error } = await sb.auth.resetPasswordForEmail(email);
+        if (error) alert("Errore: " + (error.message || "Sconosciuto"));
+        else alert("Email di recupero inviata! Controlla la posta.");
+      } catch(e) {
+          alert("Configurazione Supabase non valida.");
+      }
   };
 
   const handleDemoLogin = () => {
