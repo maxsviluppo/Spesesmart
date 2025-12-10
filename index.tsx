@@ -18,7 +18,7 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpoZ3BjY216Z3llcnR3bnZ5aWF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5OTU4NDQsImV4cCI6MjA3OTU3MTg0NH0.A0WxSn-8JKpd4tXTxSxLQIoq3M-654vGpw_guAHpQQc"; 
 
 // 3. Copia "anon" "public" Key e incollala qui sotto:
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpoZ3BjY216Z3llcnR3bnZ5aWF6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Mzk5NTg0NCwiZXhwIjoyMDc5NTcxODQ0fQ.O7iBQlZx6JrSGwgIpKSGgsLMvXpmxXsc-CayU0VPXDg";
+const SUPABASE_KEY = "..O7iBQlZx6JrSGwgIpKSGgsLMvXpmxXsc-CayU0VPXDg";
 
 // --- TYPES ---
 export type TransactionType = 'expense' | 'income';
