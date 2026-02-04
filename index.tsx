@@ -112,8 +112,9 @@ const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#e
 
 // Helper per Supabase Client (Dinamico)
 const getSupabaseClient = () => {
-  const url = safeStorage.getItem('sb_url');
-  const key = safeStorage.getItem('sb_key');
+  // CREDENZIALI RECUPERATE (Project SpeseSmart)
+  const url = 'https://zhgpccmzgyertwnvyiaz.supabase.co';
+  const key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpoZ3BjY216Z3llcnR3bnZ5aWF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5OTU4NDQsImV4cCI6MjA3OTU3MTg0NH0.A0WxSn-8JKpd4tXTxSxLQIoq3M-654vGpw_guAHpQQc';
 
   if (!url || !key) return null;
 
