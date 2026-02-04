@@ -1638,17 +1638,14 @@ const App: React.FC = () => {
       await profileService.saveGameState(currentUser.id, null);
       setSavedGame(null);
 
-      // 2. Reset profilo completo (livello, punti, badge, boss, statistiche)
+      // 2. Reset profilo completo (solo campi esistenti nel DB)
       await profileService.updateProfile({
         id: currentUser.id,
         max_level: 1,
-        total_points: 0,
+        total_score: 0,
         estimated_iq: 100,
         badges: [],
-        boss_defeats: 0,
-        duel_wins: 0,
-        duel_losses: 0,
-        perfect_levels: 0,
+        career_time_bonus: 0,
       });
 
       // 3. Cancella localStorage
