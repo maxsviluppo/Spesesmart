@@ -1,26 +1,48 @@
-// GEMINI SERVICE REMOVED - USING STATIC MESSAGES
-// L'utente ha richiesto di non usare API Key esterne per questo.
+import { GoogleGenAI } from "@google/genai";
+import { Transaction } from "../types.ts";
 
-const MOTIVATIONAL_MESSAGES = [
-  "Ottima sfida! Supera i tuoi limiti.",
-  "La tua mente è agile come un calcolatore!",
-  "Stai andando alla grande, continua così!",
-  "Incredibile velocità di pensiero!",
-  "Sei un vero campione dei numeri!",
-  "Logica impeccabile!",
-  "Non fermarti ora, il record è vicino!",
-  "Fantastico! I tuoi neuroni stanno correndo!",
-  "Precisione chirurgica!",
-  "Un vero maestro dell'aritmetica!"
-];
+// Only init AI if key is present to prevent immediate crash on static host
+const apiKey = process.env.API_KEY || '';
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
-export async function getIQInsights(score: number, level: number, timeLeft: number) {
-  // Simple logic to pick a message based on performance
-  if (score > 1000) return "Livello Genio! Prestazione eccezionale.";
-  if (level > 10) return "Stai scalando le vette della classifica!";
-  if (timeLeft > 50) return "Velocità luce! Sei rapidissimo.";
+export const getFinancialAdvice = async (transactions: Transaction[], month: string) => {
+  if (!ai) {
+    return "API Key mancante. Configura le variabili d'ambiente per usare l'AI.";
+  }
 
-  // Random fallback
-  const randomIndex = Math.floor(Math.random() * MOTIVATIONAL_MESSAGES.length);
-  return MOTIVATIONAL_MESSAGES[randomIndex];
-}
+  if (transactions.length === 0) {
+    return "Non ci sono abbastanza dati per generare un'analisi questo mese. Aggiungi alcune spese!";
+  }
+
+  // Prepare a summary string for the AI
+  const summary = transactions.map(t => 
+    `- ${t.date.split('T')[0]}: ${t.type === 'expense' ? 'Spesa' : 'Entrata'} di €${t.amount} per ${t.description} (${t.category})`
+  ).join('\n');
+
+  const prompt = `
+    Sei un assistente finanziario esperto e amichevole.
+    Analizza le seguenti transazioni per il mese di ${month}.
+    
+    Dati Transazioni:
+    ${summary}
+    
+    Per favore fornisci:
+    1. Un breve riassunto dell'andamento del mese.
+    2. Identifica la categoria dove ho speso di più.
+    3. Un consiglio pratico per risparmiare basato su questi dati.
+    
+    Rispondi in italiano. Mantieni il tono incoraggiante e conciso (massimo 150 parole).
+    Usa formattazione Markdown semplice (grassetto, elenchi).
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
+    return response.text || "Impossibile generare l'analisi al momento.";
+  } catch (error) {
+    console.error("Gemini Error:", error);
+    return "Si è verificato un errore durante l'analisi dei dati. Riprova più tardi.";
+  }
+};

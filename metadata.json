@@ -1,5 +1,5 @@
 {
-  "name": "number",
-  "description": "Un avvincente rompicapo aritmetico su griglia esagonale con sistema di punteggio a raddoppio, carry-over del tempo e stima del QI basata sulle prestazioni globali.",
+  "name": "SpeseSmart",
+  "description": "Gestione finanziaria minimalista con reportistica intelligente e tracciamento spese veloce.",
   "requestFramePermissions": []
 }
