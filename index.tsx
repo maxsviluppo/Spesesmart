@@ -204,86 +204,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
 // --- COMPONENTS ---
 
-// Setup Wizard Component (Per inserire le chiavi in sicurezza)
-const SetupWizard = ({ onComplete }: { onComplete: () => void }) => {
-  const [url, setUrl] = useState('');
-  const [key, setKey] = useState('');
-
-  const handleSave = () => {
-    if (!url.startsWith('https://')) {
-      alert("L'URL del progetto deve iniziare con https://");
-      return;
-    }
-    if (key.length < 20) {
-      alert("La chiave API sembra troppo corta.");
-      return;
-    }
-    localStorage.setItem('sb_url', url.trim());
-    localStorage.setItem('sb_key', key.trim());
-    onComplete();
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
-      <div className="bg-slate-900 w-full max-w-md p-8 rounded-2xl border border-slate-800 shadow-2xl">
-        <div className="flex justify-center mb-6">
-          <div className="bg-indigo-500/20 p-4 rounded-full">
-            <ShieldAlert size={40} className="text-indigo-400" />
-          </div>
-        </div>
-        <h1 className="text-2xl font-bold text-white text-center mb-2">Configurazione Sicura</h1>
-        <p className="text-slate-400 text-center text-sm mb-6">
-          Per evitare di esporre le tue chiavi su GitHub, inseriscile qui. Verranno salvate solo nel tuo browser.
-        </p>
-
-        <div className="space-y-4">
-          <div>
-            <label className="text-xs font-bold text-slate-500 uppercase">Supabase Project URL</label>
-            <input
-              value={url}
-              onChange={e => setUrl(e.target.value)}
-              placeholder="https://xyz.supabase.co"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-slate-500 uppercase">Supabase Public Anon Key</label>
-            <input
-              value={key}
-              onChange={e => setKey(e.target.value)}
-              placeholder="eyJhbG..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white mt-1"
-              type="password"
-            />
-          </div>
-          <button
-            onClick={handleSave}
-            className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-500 mt-4"
-          >
-            Salva e Avvia App
-          </button>
-        </div>
-
-        <div className="mt-6 pt-6 border-t border-slate-800 text-center space-y-2">
-          <p className="text-[10px] text-slate-500">
-            Non sai dove trovare questi dati?
-          </p>
-          <p className="text-xs text-slate-400">
-            Vai su <strong>Settings</strong> &gt; <strong>API</strong> nel tuo progetto Supabase.
-          </p>
-          <a
-            href="https://supabase.com/dashboard"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 text-indigo-400 text-xs font-bold hover:text-indigo-300 mt-2"
-          >
-            <ExternalLink size={14} /> Apri Dashboard Supabase
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-};
+// SetupWizard rimosso per richiesta utente (App aperta)
+// const SetupWizard = ...
 
 // Share List Modal
 const ShareListModal = ({ isOpen, onClose, items }: { isOpen: boolean; onClose: () => void; items: ListItem[] }) => {
@@ -867,7 +789,9 @@ const AddModal = ({ isOpen, onClose, onSave, initialData, expenseCategories, inc
 // --- MAIN APP ---
 
 const App = () => {
-  const [isConfigured, setIsConfigured] = useState(() => !!safeStorage.getItem('sb_url') && !!safeStorage.getItem('sb_key'));
+  // Config is now considered "always ready" (Open Mode)
+  // If keys are missing, it just stays in Offline Mode without blocking.
+  const [isConfigured, setIsConfigured] = useState(true);
 
   const [startUpTab, setStartUpTab] = useState(() => safeStorage.getItem('startUpTab') || 'home');
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => safeStorage.getItem('notificationsEnabled') === 'true');
@@ -1404,9 +1328,11 @@ const App = () => {
     }
   };
 
+  /* REMOVED SETUP WIZARD BLOCK
   if (!isConfigured) {
     return <SetupWizard onComplete={() => setIsConfigured(true)} />;
   }
+  */
 
   return (
     <div className="min-h-[100dvh] bg-slate-950 text-slate-200 pb-32 font-sans">

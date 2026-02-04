@@ -6,6 +6,23 @@
   <script>
     // Polyfill for process.env needed by some libraries
     window.process = { env: { NODE_ENV: 'development' } };
+
+    // GLOBAL ERROR HANDLER (Nuclear Option)
+    window.onerror = function (message, source, lineno, colno, error) {
+      // Prevent recursive errors
+      if (window.hasShownError) return;
+      window.hasShownError = true;
+
+      const root = document.getElementById('root') || document.body;
+      root.innerHTML = '<div style="background:black; color:red; padding:20px; font-family:sans-serif; text-align:center; height:100vh; display:flex; flex-direction:column; justify-content:center;">' +
+        '<h1>Errore Critico</h1>' +
+        '<p style="font-size:18px">' + message + '</p>' +
+        '<small>' + source + ':' + lineno + '</small>' +
+        '<br/><br/>' +
+        '<button onclick="localStorage.clear(); location.reload()" style="padding:15px; font-weight:bold;">RESET APP</button>' +
+        '</div>';
+      console.error("Critical:", message, error);
+    };
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#0E1629" />
