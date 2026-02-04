@@ -1,4 +1,4 @@
-// FORCED UPDATE: 2026-02-04 15:15 - RECAP MODAL FIX
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { HexCellData, GameState } from './types';
 import { INITIAL_TIME, BASE_POINTS_START, MAX_STREAK, GRID_ROWS, GRID_COLS, OPERATORS, MOCK_LEADERBOARD } from './constants';
@@ -49,7 +49,7 @@ const TUTORIAL_STEPS = [
 ];
 
 const WIN_VIDEOS = ['/Win1noaudio.mp4', '/Win2noaudioe.mp4', '/Win3noaudio.mp4', '/Win4noaudio.mp4'];
-const LOSE_VIDEOS = ['/Lose1noaudio.mp4', '/Lose2noaudio.mp4'];
+const LOSE_VIDEOS = ['/Lose1noaudio.mp4'];
 const SURRENDER_VIDEOS = ['/Resa1noaudio.mp4'];
 
 const BOSS_LEVELS = [
@@ -88,7 +88,7 @@ const App: React.FC = () => {
   const [previewResult, setPreviewResult] = useState<number | null>(null);
   const [insight, setInsight] = useState<string>("");
 
-  const [activeModal, setActiveModal] = useState<'leaderboard' | 'tutorial' | 'admin' | 'duel' | 'duel_selection' | 'resume_confirm' | 'logout_confirm' | 'profile' | 'registration_success' | 'boss_selection' | 'full_reset_confirm' | null>(null);
+  const [activeModal, setActiveModal] = useState<'leaderboard' | 'tutorial' | 'admin' | 'duel' | 'duel_selection' | 'resume_confirm' | 'logout_confirm' | 'profile' | 'registration_success' | 'boss_selection' | null>(null);
   const [activeMatch, setActiveMatch] = useState<{ id: string, opponentId: string, isDuel: boolean, isP1: boolean } | null>(null);
   const [duelMode, setDuelMode] = useState<'standard' | 'blitz'>('standard');
   const [opponentScore, setOpponentScore] = useState(0);
@@ -103,8 +103,6 @@ const App: React.FC = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
   const [showLostVideo, setShowLostVideo] = useState(false);
-  const [showBossIntro, setShowBossIntro] = useState(false);
-  const [isBossBonusPlaying, setIsBossBonusPlaying] = useState(false);
   const [showHomeTutorial, setShowHomeTutorial] = useState(false);
   const [showGameTutorial, setShowGameTutorial] = useState(false);
   const theme = 'orange';
@@ -143,20 +141,6 @@ const App: React.FC = () => {
     }, 8000); // Slightly more frequent
     return () => clearInterval(interval);
   }, []);
-  useEffect(() => {
-    if (gameState.isBossLevel) {
-      document.body.style.background = '#022c22'; // emerald-950
-      document.documentElement.style.background = '#022c22';
-    } else {
-      document.body.style.background = '#020617'; // Default Slate-950
-      document.documentElement.style.background = '#020617';
-    }
-    return () => {
-      document.body.style.background = '#020617';
-      document.documentElement.style.background = '#020617';
-    };
-  }, [gameState.isBossLevel]);
-
   const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
 
   const [savedGame, setSavedGame] = useState<any>(null);
@@ -226,16 +210,15 @@ const App: React.FC = () => {
 
 
   const getDifficultyRange = (level: number) => {
-    // NUOVA CURVA: Progressione molto più graduale - difficoltà livello 20 ora al livello 80
-    if (level <= 10) return { min: 1, max: 12 };       // Inizio molto facile (solo somme/sottrazioni)
-    if (level <= 20) return { min: 3, max: 18 };       // Ancora facile, preparazione per ×
-    if (level <= 40) return { min: 5, max: 25 };       // Introduzione graduale di ×
-    if (level <= 60) return { min: 8, max: 35 };       // × più frequente
-    if (level <= 80) return { min: 10, max: 50 };      // Preparazione per ÷ (era livello 20)
-    if (level <= 100) return { min: 15, max: 65 };     // ÷ più frequente
+    // MODIFIED: Much gentler slope for first 30 levels to ease player in
+    if (level <= 5) return { min: 1, max: 12 };       // Very easy start (mostly sums)
+    if (level <= 10) return { min: 5, max: 20 };      // Introducing complexity slowly
+    if (level <= 20) return { min: 10, max: 35 };     // Moderate
+    if (level <= 30) return { min: 15, max: 50 };     // Challenging but fair
 
-    // Progressione lineare molto graduale per livelli avanzati
-    return { min: 20 + Math.floor((level - 100) * 1.5), max: 65 + Math.floor((level - 100) * 3) };
+    // Original linear scaling kicking in after level 30
+    // Adjusted formula to match the curve
+    return { min: 20 + ((level - 20) * 2), max: 50 + ((level - 20) * 5) };
   };
 
   // Helper: Calculate result from a cell path (for solver)
@@ -345,8 +328,7 @@ const App: React.FC = () => {
 
     // Helper: Weighted numbers for early levels
     const getWeightedNumber = () => {
-      // Numeri più piccoli per molti più livelli (fino al 60)
-      if (level <= 60) {
+      if (level <= 30) {
         const r = rng();
         // 60% chance of small numbers (1-4), 30% mid (5-7), 10% high (8-9) or 0
         if (r < 0.60) return Math.floor(rng() * 4) + 1;
@@ -361,39 +343,10 @@ const App: React.FC = () => {
       const pool = [];
       let weights = { '+': 0.35, '-': 0.35, '×': 0.20, '÷': 0.10 };
 
-      // NUOVA PROGRESSIONE: Introduzione molto più graduale degli operatori
-      if (level <= 15) {
-        // Livelli 1-15: Solo addizione e sottrazione
-        weights = { '+': 0.50, '-': 0.50, '×': 0.0, '÷': 0.0 };
-      }
-      else if (level <= 25) {
-        // Livelli 16-25: Prima introduzione della moltiplicazione (10%)
-        weights = { '+': 0.45, '-': 0.45, '×': 0.10, '÷': 0.0 };
-      }
-      else if (level <= 40) {
-        // Livelli 26-40: Moltiplicazione aumenta gradualmente (20%)
-        weights = { '+': 0.40, '-': 0.40, '×': 0.20, '÷': 0.0 };
-      }
-      else if (level <= 50) {
-        // Livelli 41-50: Moltiplicazione più frequente (30%), ancora niente divisione
-        weights = { '+': 0.35, '-': 0.35, '×': 0.30, '÷': 0.0 };
-      }
-      else if (level <= 65) {
-        // Livelli 51-65: Prima introduzione della divisione (5%)
-        weights = { '+': 0.35, '-': 0.30, '×': 0.30, '÷': 0.05 };
-      }
-      else if (level <= 80) {
-        // Livelli 66-80: Divisione aumenta (10%)
-        weights = { '+': 0.30, '-': 0.30, '×': 0.30, '÷': 0.10 };
-      }
-      else if (level <= 100) {
-        // Livelli 81-100: Bilanciamento verso operatori complessi
-        weights = { '+': 0.25, '-': 0.30, '×': 0.30, '÷': 0.15 };
-      }
-      // Livelli 100+: Massima difficoltà
-      else {
-        weights = { '+': 0.25, '-': 0.25, '×': 0.30, '÷': 0.20 };
-      }
+      // Easier operators for early levels
+      if (level <= 5) weights = { '+': 0.50, '-': 0.50, '×': 0.0, '÷': 0.0 };
+      else if (level <= 15) weights = { '+': 0.40, '-': 0.40, '×': 0.20, '÷': 0.0 };
+      else if (level <= 30) weights = { '+': 0.35, '-': 0.35, '×': 0.25, '÷': 0.05 };
 
       for (let i = 0; i < count; i++) {
         const r = rng();
@@ -553,50 +506,20 @@ const App: React.FC = () => {
 
     setActiveModal(null);
     setGrid(levelData.grid);
-
-    if (bossId === 1) {
-      // PREPARE LEVEL BUT DON'T START YET
-      setGameState(prev => ({
-        ...prev,
-        score: 0,
-        totalScore: 0,
-        streak: 0,
-        level: bossId,
-        isBossLevel: true,
-        bossLevelId: bossId,
-        timeLeft: 90,
-        targetResult: 0,
-        status: 'idle', // Stay idle until video ends
-        levelTargets: levelData.targets,
-      }));
-
-      // SHOW BOSS INTRO
-      setShowBossIntro(true);
-      setIsVideoVisible(true);
-      if (videoRef.current) {
-        videoRef.current.src = '/Boss1intro.mp4';
-        videoRef.current.muted = true; // REQUIRED for browser autoplay policy
-        videoRef.current.load();
-        videoRef.current.play().catch(e => {
-          console.warn("Boss intro blocked:", e);
-        });
-      }
-    } else {
-      setGameState(prev => ({
-        ...prev,
-        score: 0,
-        totalScore: 0, // Boss level starts at 0 pts
-        streak: 0,
-        level: bossId, // Boss Level ID
-        isBossLevel: true,
-        bossLevelId: bossId,
-        timeLeft: 90,
-        targetResult: 0,
-        status: 'playing',
-        levelTargets: levelData.targets,
-      }));
-      soundService.playSuccess();
-    }
+    setGameState(prev => ({
+      ...prev,
+      score: 0,
+      totalScore: 0, // Boss level starts at 0 pts
+      streak: 0,
+      level: bossId, // Boss Level ID
+      isBossLevel: true,
+      bossLevelId: bossId,
+      timeLeft: 90,
+      targetResult: 0,
+      status: 'playing',
+      levelTargets: levelData.targets,
+    }));
+    soundService.playSuccess();
   };
 
   const generateGrid = useCallback((forceStartLevel?: number, forcedSeed?: string) => {
@@ -837,16 +760,7 @@ const App: React.FC = () => {
         }
 
         // VIDEO UNLOCK - AUTO PLAY MUTED ON TIMEOUT (Browser Policy)
-        let loseVid = '';
-        if (gameState.bossLevelId === 1) {
-          loseVid = '/Boss1sconfitta.mp4';
-        } else {
-          const loseIdx = Math.floor(Math.random() * LOSE_VIDEOS.length);
-          loseVid = LOSE_VIDEOS[loseIdx];
-          // Play Synchronized Audio Track (Lose1.mp3 / Lose2.mp3)
-          soundService.playLose(loseIdx);
-        }
-
+        const loseVid = LOSE_VIDEOS[0];
         setLoseVideoSrc(loseVid);
         setShowLostVideo(true);
         setIsVideoVisible(true);
@@ -858,6 +772,9 @@ const App: React.FC = () => {
           videoRef.current.play().catch(e => {
             console.warn("Loss video blocked (timeout):", e);
           });
+
+          // Play Synchronized Audio Track (Lose1.mp3)
+          soundService.playLose();
         }
       }
     } else if (gameState.status === 'playing' && !activeMatch?.isDuel && gameState.timeLeft <= 5 && gameState.timeLeft > 0) {
@@ -1542,8 +1459,6 @@ const App: React.FC = () => {
     // Consume bonus if starting a standard game
     if (careerBonus > 0 && !activeMatch?.isDuel) {
       localStorage.setItem('career_time_bonus', '0');
-      // Show toast notification
-      showToast(`🏆 BONUS BOSS ATTIVATO! +${careerBonus}s al tempo iniziale!`);
     }
 
     setGameState(prev => {
@@ -1602,23 +1517,13 @@ const App: React.FC = () => {
     setTriggerParticles(false);
     setPreviewResult(null);
 
-    // Check for Career Bonus
-    const careerBonus = parseInt(localStorage.getItem('career_time_bonus') || '0');
-    let newTimeLeft = savedGame.timeLeft || INITIAL_TIME;
-
-    if (careerBonus > 0) {
-      localStorage.setItem('career_time_bonus', '0');
-      newTimeLeft += careerBonus;
-      showToast(`🏆 BONUS BOSS ATTIVATO! +${careerBonus}s al tempo ripristinato!`);
-    }
-
     setGameState(prev => ({
       ...prev, // Keep some defaults
       score: 0,
       totalScore: 0, // Reset session score to 0 on restore
       streak: savedGame.streak || 0,
       level: savedGame.level || 1,
-      timeLeft: newTimeLeft,
+      timeLeft: savedGame.timeLeft || INITIAL_TIME,
       status: 'playing',
       estimatedIQ: savedGame.estimatedIQ || 100,
       levelTargets: [],
@@ -1626,65 +1531,7 @@ const App: React.FC = () => {
 
     // Generate Grid for the SAVED Level
     setTimeout(() => generateGrid(savedGame.level), 0);
-    if (careerBonus === 0) showToast("Partita Ripristinata");
-  };
-
-  // FULL GAME RESET: Cancella TUTTO (progressi, badge, boss, statistiche)
-  const handleFullReset = async () => {
-    if (!currentUser) return;
-
-    try {
-      // 1. Cancella partita salvata
-      await profileService.saveGameState(currentUser.id, null);
-      setSavedGame(null);
-
-      // 2. Reset profilo completo (solo campi esistenti nel DB)
-      await profileService.updateProfile({
-        id: currentUser.id,
-        max_level: 1,
-        total_score: 0,
-        estimated_iq: 100,
-        badges: [],
-        career_time_bonus: 0,
-      });
-
-      // 3. Cancella localStorage
-      localStorage.removeItem('career_time_bonus');
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('boss_unlock_seen_')) {
-          localStorage.removeItem(key);
-        }
-      });
-
-      // 4. Ricarica profilo
-      await loadProfile(currentUser.id);
-
-      // 5. Reset stato gioco
-      setGameState(prev => ({
-        ...prev,
-        score: 0,
-        totalScore: 0,
-        streak: 0,
-        level: 1,
-        timeLeft: INITIAL_TIME,
-        targetResult: 0,
-        status: 'idle',
-        estimatedIQ: 100,
-        lastLevelPerfect: true,
-        basePoints: BASE_POINTS_START,
-        levelTargets: [],
-        isBossLevel: false,
-        bossLevelId: null,
-      }));
-
-      setActiveModal(null);
-      soundService.playSuccess();
-      showToast('🔥 RESET COMPLETO! Benvenuto in una nuova avventura!');
-
-    } catch (error) {
-      console.error('Errore durante il reset:', error);
-      showToast('❌ Errore durante il reset. Riprova.');
-    }
+    showToast("Partita Ripristinata");
   };
 
   const handleStartGameClick = useCallback(async (e?: React.PointerEvent) => {
@@ -1934,9 +1781,8 @@ const App: React.FC = () => {
         // DOMINION TOAST REMOVED (Too spammy)
 
         // We do NOT declare winner here. Winner is declared only on Time Over.
+        return;
       }
-
-
 
       if (allDone) {
         setTriggerParticles(false);
@@ -1951,40 +1797,21 @@ const App: React.FC = () => {
           // We don't stack it indefinitely, we set it to 30 for the next classic game
           localStorage.setItem('career_time_bonus', '30');
 
-          // Sync score to global profile AND award boss completion
+          // Sync score to global profile - EXCLUDING Time Bonus as requested
           if (currentUser) {
             const bossFinalPoints = newScore + 50; // Just Score + Victory Bonus, NO Time Left conversion
-
-            // Award Boss Badge + Time Bonus
-            profileService.completeBoss(currentUser.id, gameState.bossLevelId!)
-              .then(isNewCompletion => {
-                if (isNewCompletion) {
-                  console.log('✅ Boss completion badge and time bonus awarded!');
-                }
-              })
-              .catch(e => console.error("Error completing boss:", e));
-
-            // Sync points
             profileService.syncProgress(currentUser.id, bossFinalPoints, gameState.level, gameState.estimatedIQ)
               .then(() => loadProfile(currentUser.id))
               .catch(e => console.error("Error syncing boss progress:", e));
           }
 
-          // Boss 1 specific victory sequence
-          if (gameState.bossLevelId === 1) {
-            setTimeout(() => {
-              if (videoRef.current) {
-                // Step 1: Trigger Bonus Video
-                setIsBossBonusPlaying(true);
-                setShowVideo(true);
-                setIsVideoVisible(true);
-                // React render will handle src update to Bonus video
-              }
-            }, 500);
-          } else {
-            // Standard Boss Win
-            setShowVideo(true);
-          }
+          showToast(`🏆 BOSS SCONFITTO! +30s BONUS CARRIERA!`, [], 4000);
+
+          // Return to Home after victory animation
+          setTimeout(() => {
+            goToHome();
+            setGameState(prev => ({ ...prev, isBossLevel: false, bossLevelId: null }));
+          }, 3000);
 
           return;
         }
@@ -2083,21 +1910,30 @@ const App: React.FC = () => {
             .catch(e => console.error("Error saving game state:", e));
           setSavedGame(saveState);
         }
+
+
       } else {
         // NOT ALL DONE - CONTINUE PLAYING
         // setGameState was already called at the top of handleSuccess for consistent UI update
-        // SYNC DUEL STATS (Non-Winning Move)
-        if (activeMatch?.isDuel && currentUser) {
-          // Calculate localTargetsFound for this scope
-          const localTargetsFound = newTargets.filter(t => t.completed).length;
+        const completedCount = newTargets.filter(t => t.completed).length;
 
+
+        // SYNC DUEL STATS (Non-Winning Move)
+        if (activeMatch?.isDuel) {
           if (duelMode === 'standard') {
-            // STANDARD MODE: Score logic
+            // STANDARD MODE: Score = Targets Found (Points)
+            // We use the cumulative count of completed targets in the current level.
+            // Since Standard Duel is single-level (conceptually), or we just count total targets found.
+            // We rely on 'completedCount' from the current 'newTargets' state which is the source of truth for THIS client.
+
+            const localTargetsFound = newTargets.filter(t => t.completed).length;
+
             matchService.updateMatchStats(activeMatch.id, activeMatch.isP1, newScore, localTargetsFound)
               .catch(e => console.error("Error syncing duel stats:", e));
 
-            // CHECK WIN CONDITION HERE TOO
+            // CHECK WIN CONDITION HERE TOO (In case 5th point is found but level not cleared)
             if (localTargetsFound >= 5) {
+              // EXECUTE WIN SEQUENCE
               (async () => {
                 try {
                   await matchService.declareWinner(activeMatch.id, currentUser.id);
@@ -2107,15 +1943,14 @@ const App: React.FC = () => {
                   setLatestMatchData(prev => ({
                     ...prev,
                     status: 'finished',
-                    winner_id: currentUser.id,
+                    winner_id: currentUser!.id,
                     player1_score: activeMatch.isP1 ? newScore : prev?.player1_score,
                     player2_score: !activeMatch.isP1 ? newScore : prev?.player2_score,
                     p1_rounds: activeMatch.isP1 ? 5 : prev?.p1_rounds,
                     p2_rounds: !activeMatch.isP1 ? 5 : prev?.p2_rounds,
                   }));
 
-                  // SYNC GLOBAL SCORE
-                  const finalPointsToSync = newScore;
+                  // SYNC GLOBAL SCORE: Match total including target 5 + bonuses
                   await profileService.syncProgress(currentUser.id, finalPointsToSync, gameStateRef.current.level, gameStateRef.current.estimatedIQ);
                   await loadProfile(currentUser.id);
 
@@ -2126,7 +1961,7 @@ const App: React.FC = () => {
                       const winIdx = Math.floor(Math.random() * WIN_VIDEOS.length);
                       const vidSrc = WIN_VIDEOS[winIdx];
                       videoRef.current.src = vidSrc;
-                      videoRef.current.muted = false;
+                      videoRef.current.muted = false; // Enable audio
                       videoRef.current.load();
                       videoRef.current.play().catch(e => console.warn("Duel win video blocked:", e));
                       setWinVideoSrc(vidSrc);
@@ -2141,7 +1976,7 @@ const App: React.FC = () => {
             }
 
           } else {
-            // Blitz/TimeAttack generic sync
+            // Blitz - Sync Target Count as "Score" for realtime updates, and Round Wins as "Rounds"
             const currentRounds = activeMatch.isP1 ? duelRounds.p1 : duelRounds.p2;
             matchService.updateMatchStats(activeMatch.id, activeMatch.isP1, localTargetsFound, currentRounds)
               .catch(e => console.error("Error syncing duel stats:", e));
@@ -2478,9 +2313,6 @@ const App: React.FC = () => {
   const handleVideoClose = () => {
     // 1. Visual Fade Out
     setIsVideoVisible(false);
-    soundService.stopBoss1vittoria();
-    soundService.stopBossBonus();
-    setIsBossBonusPlaying(false);
 
     // 2. Audio Fade Out
     if (videoRef.current) {
@@ -2514,9 +2346,6 @@ const App: React.FC = () => {
         setShowDuelRecap(true);
         // Ensure we are idle to stop game interaction
         setGameState(prev => ({ ...prev, status: 'idle' }));
-      } else if (gameState.isBossLevel) {
-        setActiveModal('boss_selection');
-        setGameState(prev => ({ ...prev, status: 'idle', isBossLevel: false, bossLevelId: null }));
       } else {
         setGameState(prev => ({
           ...prev,
@@ -2529,7 +2358,6 @@ const App: React.FC = () => {
   const handleLostVideoClose = () => {
     // 1. Visual Fade Out
     setIsVideoVisible(false);
-    soundService.stopBoss1sconfitta();
 
     // 2. Audio Fade Out
     if (videoRef.current) {
@@ -2562,37 +2390,6 @@ const App: React.FC = () => {
         setGameState(prev => ({ ...prev, status: 'idle' }));
       }
     }, 2000);
-  };
-
-  const handleBossIntroClose = () => {
-    setIsVideoVisible(false);
-    soundService.stopBossIntro();
-
-    if (videoRef.current) {
-      const vid = videoRef.current;
-      const startVolume = vid.volume;
-      const fadeDuration = 1000;
-      const intervalTime = 40;
-      const steps = fadeDuration / intervalTime;
-      let currentStep = 0;
-
-      const fadeInterval = setInterval(() => {
-        currentStep++;
-        const progress = Math.min(1, currentStep / steps);
-        const newVolume = Math.max(0, startVolume * (1 - progress) * (1 - progress));
-        if (newVolume > 0.01) vid.volume = newVolume;
-        else {
-          vid.volume = 0;
-          clearInterval(fadeInterval);
-        }
-      }, intervalTime);
-    }
-
-    setTimeout(() => {
-      setShowBossIntro(false);
-      setGameState(prev => ({ ...prev, status: 'playing', timeLeft: 90 }));
-      soundService.playSuccess();
-    }, 1000);
   };
 
   const handleSurrenderVideoClose = () => {
@@ -2644,21 +2441,12 @@ const App: React.FC = () => {
         } catch (e) { console.warn("Tutorial check skipped", e); }
       }} />}
       <div
-        className={`min-h-[100dvh] text-slate-100 font-sans overflow-hidden select-none pb-20 safe-area-bottom transition-colors duration-1000`}
-        style={{
-          background: gameState.isBossLevel ? '#022c22' : 'linear-gradient(to top, #004488, #0088dd)'
-        }}
+        className="min-h-[100dvh] bg-gradient-to-t from-[#004488] to-[#0088dd] text-slate-100 font-sans overflow-hidden select-none pb-20 safe-area-bottom"
         onPointerUp={handleGlobalEnd}
         onPointerLeave={handleGlobalEnd}
       >
-        {/* BOSS BACKGROUND FALLBACK LAYER (Solid Green) - Ensures no blue leaks ever */}
-        <div className={`fixed inset-0 bg-emerald-950 z-[-1] transition-opacity duration-300 ${gameState.isBossLevel ? 'opacity-100' : 'opacity-0'}`}></div>
-
-        {/* BOSS BOTTOM PATCH - Extra safety for safe-area */}
-        <div className={`fixed -bottom-40 left-0 w-full h-80 bg-emerald-950 z-[-1] ${gameState.isBossLevel ? 'opacity-100' : 'opacity-0'}`}></div>
-
-        {/* BOSS BACKGROUND IMAGE LAYER - Extreme bleed to cover everything */}
-        <div className={`fixed -inset-[20%] w-[140%] h-[140%] bg-[url('/sfondo_green.png')] bg-cover bg-center bg-no-repeat transition-opacity duration-1000 z-0 ${gameState.isBossLevel ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}></div>
+        {/* BOSS BACKGROUND LAYER */}
+        <div className={`absolute inset-0 bg-[url('/sfondo_green.png')] bg-cover bg-center bg-no-repeat transition-opacity duration-1000 z-0 ${gameState.isBossLevel ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}></div>
 
 
 
@@ -2668,91 +2456,35 @@ const App: React.FC = () => {
         {/* UNIFIED VIDEO OVERLAY - Always in DOM for Mobile Unlock */}
         <div
           className={`fixed inset-0 z-[2000] bg-black flex items-center justify-center transition-opacity duration-[800ms] ease-out 
-            ${(showVideo || showLostVideo || showSurrenderVideo || showBossIntro) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+            ${(showVideo || showLostVideo || showSurrenderVideo) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
           onPointerDown={() => {
             if (showVideo) handleVideoClose();
             else if (showLostVideo) handleLostVideoClose();
             else if (showSurrenderVideo) handleSurrenderVideoClose();
-            else if (showBossIntro) handleBossIntroClose();
           }}
         >
           <video
             ref={videoRef}
-            src={isBossBonusPlaying ? '/Bonus30secondiboss.mp4' : (showVideo ? winVideoSrc : (showLostVideo ? loseVideoSrc : (showSurrenderVideo ? surrenderVideoSrc : (showBossIntro ? '/Boss1intro.mp4' : ''))))}
+            src={showVideo ? winVideoSrc : (showLostVideo ? loseVideoSrc : (showSurrenderVideo ? surrenderVideoSrc : ''))}
             className="w-full h-full object-cover"
             playsInline
             autoPlay
             onPlay={() => {
               if (videoRef.current) videoRef.current.volume = 0.7;
               setIsVideoVisible(true);
-
-              // SYNC BOSS AUDIO
-              if (gameState.bossLevelId === 1) {
-                if (showBossIntro) {
-                  soundService.stopBossIntro();
-                  soundService.playBossIntro();
-                } else if (showVideo) {
-                  if (isBossBonusPlaying) {
-                    soundService.stopBoss1vittoria();
-                    soundService.playBossBonus();
-                  } else {
-                    soundService.stopBossBonus();
-                    soundService.playBoss1vittoria();
-                  }
-                } else if (showLostVideo) {
-                  soundService.stopBoss1sconfitta();
-                  soundService.playBoss1sconfitta();
-                }
-              }
             }}
             onEnded={() => {
-              if (showVideo) {
-                if (gameState.bossLevelId === 1 && isBossBonusPlaying) {
-                  // STEP 1 COMPLETE: Bonus Video Ended -> Play Boss Victory Video
-                  setIsBossBonusPlaying(false);
-                  setWinVideoSrc('/Boss1vittoria.mp4');
-                  // Force reload to ensure src update
-                  setTimeout(() => {
-                    if (videoRef.current) {
-                      videoRef.current.load();
-                      videoRef.current.play().catch(e => console.warn("Boss victory video blocked:", e));
-                    }
-                  }, 50);
-                } else {
-                  // STEP 2 COMPLETE: Boss Victory Video Ended -> Close and return to lobby
-                  handleVideoClose();
-                }
-              }
+              if (showVideo) handleVideoClose();
               else if (showLostVideo) handleLostVideoClose();
               else if (showSurrenderVideo) handleSurrenderVideoClose();
-              else if (showBossIntro) handleBossIntroClose();
             }}
           />
-
-          {/* Audio Toggle for Boss Intro/Win/Loss */}
-          {(showBossIntro || ((showVideo || showLostVideo) && gameState.isBossLevel)) && (
-            <button
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                const newMuted = !isMuted;
-                setIsMuted(newMuted);
-                soundService.setMuted(newMuted);
-              }}
-              className={`absolute top-12 right-6 z-[2010] p-3 rounded-full border transition-all active:scale-95 shadow-lg
-                    ${!isMuted
-                  ? 'bg-emerald-500 border-emerald-400 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)]'
-                  : 'bg-black/40 backdrop-blur-md border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
-                }`}
-            >
-              {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
-            </button>
-          )}
 
           {/* Overlay color based on state */}
           {showLostVideo && <div className="absolute inset-0 bg-red-900/10 mix-blend-overlay pointer-events-none"></div>}
           {showSurrenderVideo && <div className="absolute inset-0 bg-blue-900/10 mix-blend-overlay pointer-events-none"></div>}
 
-          {(showVideo || showLostVideo || showSurrenderVideo || showBossIntro) && (
+          {(showVideo || showLostVideo || showSurrenderVideo) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 z-50 pointer-events-none">
               {/* FAIL-SAFE TAP TO PLAY (Only visible if video stuck/not visible) */}
               {/* FAIL-SAFE TAP TO PLAY REMOVED - AUTOMATIC ONLY */}
@@ -2765,11 +2497,10 @@ const App: React.FC = () => {
                   if (showVideo) handleVideoClose();
                   else if (showLostVideo) handleLostVideoClose();
                   else if (showSurrenderVideo) handleSurrenderVideoClose();
-                  else if (showBossIntro) handleBossIntroClose();
                 }}
               >
-                <span>SKIP {showBossIntro ? 'INTRO' : ''}</span>
-                <FastForward size={14} className={showLostVideo ? (gameState.isBossLevel ? "text-emerald-400" : "text-red-500") : (showSurrenderVideo ? "text-blue-500" : ((showBossIntro || (showVideo && gameState.isBossLevel)) ? "text-emerald-400" : "text-[#FF8800]"))} />
+                <span>SKIP</span>
+                <FastForward size={14} className={showLostVideo ? "text-red-500" : (showSurrenderVideo ? "text-blue-500" : "text-[#FF8800]")} />
               </button>
             </div>
           )}
@@ -2959,18 +2690,32 @@ const App: React.FC = () => {
                   </button>
 
                   <button
-                    className="flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white py-5 rounded-xl border-[3px] border-white shadow-[0_6px_0_rgba(0,0,0,0.1)] active:translate-y-1 active:shadow-none hover:scale-105 transition-all duration-300 col-span-2 relative overflow-hidden group"
+                    className={`flex items-center justify-center gap-2 py-5 rounded-xl border-[3px] border-white shadow-[0_6px_0_rgba(0,0,0,0.1)] active:translate-y-1 active:shadow-none transition-all duration-300 col-span-2 relative overflow-hidden group
+                      ${((userProfile?.max_level || 0) > 5 || gameState.level > 5 || (savedGame?.level || 0) > 5)
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:scale-105'
+                        : 'bg-slate-800 text-slate-500 opacity-80 cursor-not-allowed'}`}
                     id="boss-btn-home"
                     onPointerDown={() => {
-                      soundService.playUIClick();
-                      setActiveModal('boss_selection');
+                      if ((userProfile?.max_level || 0) > 5 || gameState.level > 5 || (savedGame?.level || 0) > 5) {
+                        soundService.playUIClick();
+                        setActiveModal('boss_selection');
+                      } else {
+                        soundService.playError();
+                        showToast(`🚀 COMPLETA IL LIVELLO 5 PER SBLOCCARE I BOSS!`, [], 3000);
+                      }
                     }}
                   >
                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
-                    <Crown className="w-8 h-8 text-yellow-300 animate-[bounce_3s_infinite]" />
+                    {((userProfile?.max_level || 0) > 5 || gameState.level > 5 || (savedGame?.level || 0) > 5) ? (
+                      <Crown className="w-8 h-8 text-yellow-300 animate-[bounce_3s_infinite]" />
+                    ) : (
+                      <Lock className="w-8 h-8 text-slate-400" />
+                    )}
                     <div className="flex flex-col items-start leading-none relative z-10">
                       <span className="font-orbitron text-xl font-black uppercase tracking-widest drop-shadow-md">BOSS LEVELS</span>
-                      <span className="text-[10px] font-bold opacity-80 uppercase tracking-wider">Sfide Epiche & Bonus</span>
+                      <span className="text-[10px] font-bold opacity-80 uppercase tracking-wider">
+                        {((userProfile?.max_level || 0) > 5 || gameState.level > 5 || (savedGame?.level || 0) > 5) ? 'Sfide Epiche & Bonus' : 'Sblocca al Livello 6'}
+                      </span>
                     </div>
                   </button>
 
@@ -3303,7 +3048,6 @@ const App: React.FC = () => {
                 </div>
               )}
 
-
               {gameState.status === 'game-over' && (
                 <div className={`glass-panel p-6 rounded-[2rem] text-center modal-content animate-screen-in w-full max-w-sm mt-40 relative overflow-hidden border-[3px] shadow-lg
                   ${gameState.isBossLevel
@@ -3391,13 +3135,14 @@ const App: React.FC = () => {
                         </div>
                       </div>
 
-                      <button onPointerDown={async (e) => {
+                      <button onPointerDown={(e) => {
                         e.stopPropagation();
-                        if (currentUser && gameState.bossLevelId) {
-                          await profileService.completeBoss(currentUser.id, gameState.bossLevelId);
-                          loadProfile(currentUser.id);
-                        }
+                        // Apply rewards logic if needed (already in score maybe? No, need to save)
+                        // Usually syncProgress handles standard levels. For Boss, we might want explicit call?
+                        // For now, just go home.
                         setGameState(prev => ({ ...prev, isBossLevel: false, bossLevelId: null, status: 'idle' }));
+                        // Force Save
+                        if (currentUser) profileService.syncProgress(currentUser.id, 1000, userProfile?.max_level || gameState.level, gameState.estimatedIQ);
                       }}
                         className="w-full bg-yellow-600 text-white py-4 rounded-xl font-orbitron font-black uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-all border border-yellow-400 hover:bg-yellow-500">
                         RISCATTA & TORNA ALLA BASE
@@ -3510,28 +3255,26 @@ const App: React.FC = () => {
                   const isUnlocked = (userProfile?.max_level || 0) > boss.requiredLevel ||
                     gameState.level > boss.requiredLevel ||
                     (savedGame?.level || 0) > boss.requiredLevel;
-                  const isCompleted = userProfile?.badges?.includes(boss.id === 1 ? 'boss_matematico' : `boss_${boss.id}_defeated`);
+                  // const isCompleted = ... (check badge logic later)
 
                   return (
                     <button
                       key={boss.id}
                       disabled={!isUnlocked}
                       className={`w-full p-4 rounded-xl flex items-center gap-4 border-2 transition-all group shadow-lg relative overflow-hidden
-                           ${isCompleted
-                          ? 'bg-slate-800/80 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.2)] cursor-default grayscale-[0.5]'
-                          : isUnlocked
-                            ? 'bg-gradient-to-r from-emerald-800 to-teal-900 border-emerald-500/30 hover:border-emerald-400 active:scale-95 cursor-pointer'
-                            : 'bg-slate-800 border-slate-700 opacity-60 cursor-not-allowed grayscale'}`}
+                           ${isUnlocked
+                          ? 'bg-gradient-to-r from-emerald-800 to-teal-900 border-emerald-500/30 hover:border-emerald-400 active:scale-95 cursor-pointer'
+                          : 'bg-slate-800 border-slate-700 opacity-60 cursor-not-allowed grayscale'}`}
                       onPointerDown={() => {
-                        if (isUnlocked && !isCompleted) {
+                        if (isUnlocked) {
                           soundService.playUIClick();
                           startBossGame(boss.id);
                         }
                       }}
                     >
                       <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 border-2 shadow-inner relative z-10
-                            ${isUnlocked ? (isCompleted ? 'bg-amber-500 border-amber-300 text-white' : 'bg-emerald-500 border-emerald-300 text-white') : 'bg-slate-700 border-slate-600 text-slate-500'}`}>
-                        {isCompleted ? <Trophy size={24} className="animate-bounce-slow" /> : (isUnlocked ? <Play size={24} fill="currentColor" /> : <Shield size={24} />)}
+                            ${isUnlocked ? 'bg-emerald-500 border-emerald-300 text-white' : 'bg-slate-700 border-slate-600 text-slate-500'}`}>
+                        {isUnlocked ? <Play size={24} fill="currentColor" /> : <Shield size={24} />}
                       </div>
 
                       <div className="text-left flex-1 relative z-10">
@@ -3632,203 +3375,33 @@ const App: React.FC = () => {
 
         {activeModal === 'resume_confirm' && (
           <div className="fixed inset-0 z-[5000] flex items-center justify-center p-6 modal-overlay bg-black/90 backdrop-blur-md" onPointerDown={() => setActiveModal(null)}>
-            <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-[3px] border-[#FF8800] w-full max-w-md p-8 rounded-[2rem] shadow-[0_0_60px_rgba(255,136,0,0.5)] flex flex-col relative overflow-hidden" onPointerDown={e => e.stopPropagation()}>
-              {/* Animated Background */}
-              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none"></div>
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#FF8800] to-transparent animate-pulse"></div>
+            <div className="bg-slate-900 border-[3px] border-[#FF8800] w-full max-w-sm p-8 rounded-[2rem] shadow-[0_0_50px_rgba(255,136,0,0.4)] flex flex-col text-center relative overflow-hidden" onPointerDown={e => e.stopPropagation()}>
+              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 pointer-events-none"></div>
 
-              {/* Header Icon - Hexagon Shape (like game cells) */}
-              <div className="relative z-10 mb-6">
-                <div className="w-24 h-24 mx-auto relative">
-                  {/* Hexagon SVG Background */}
-                  <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full drop-shadow-[0_0_20px_rgba(255,136,0,0.6)]">
-                    <defs>
-                      <linearGradient id="hexGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" style={{ stopColor: '#FF8800', stopOpacity: 1 }} />
-                        <stop offset="100%" style={{ stopColor: '#D97706', stopOpacity: 1 }} />
-                      </linearGradient>
-                    </defs>
-                    <polygon
-                      points="50,5 90,27.5 90,72.5 50,95 10,72.5 10,27.5"
-                      fill="url(#hexGradient)"
-                      stroke="#FFB347"
-                      strokeWidth="2"
-                      className="animate-pulse"
-                    />
-                  </svg>
-                  {/* Play Icon Centered */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Play className="w-10 h-10 text-white drop-shadow-lg" fill="white" />
-                  </div>
-                </div>
-              </div>
+              <AlertTriangle className="w-16 h-16 text-[#FF8800] mx-auto mb-4 animate-pulse" />
+              <h2 className="text-2xl font-black font-orbitron text-white mb-2 uppercase tracking-wider relative z-10">PARTITA SALVATA</h2>
+              <p className="text-slate-400 font-bold text-sm mb-8 relative z-10">
+                Hai una partita in sospeso.<br />Vuoi riprenderla o iniziarne una nuova?
+              </p>
 
-              {/* Title */}
-              <h2 className="text-3xl font-black font-orbitron text-white mb-2 uppercase tracking-wider relative z-10 text-center">
-                PARTITA IN CORSO
-              </h2>
-
-              {/* Saved Game Info */}
-              <div className="bg-black/30 border border-[#FF8800]/30 rounded-xl p-4 mb-6 relative z-10">
-                <div className="flex items-center justify-center gap-3 mb-2">
-                  <Trophy className="w-5 h-5 text-amber-400" />
-                  <span className="text-slate-300 font-bold text-sm">LIVELLO SALVATO</span>
-                </div>
-                <div className="text-5xl font-black font-orbitron text-[#FF8800] text-center">
-                  {savedGame?.level || 1}
-                </div>
-
-                {/* Detailed Stats Grid */}
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                  {/* Time Info - Now shows total available time */}
-                  <div className="bg-black/20 rounded-lg p-2 border border-white/5">
-                    <div className="flex items-center justify-center gap-1 mb-1">
-                      <Timer className="w-3 h-3 text-blue-400" />
-                      <span className="text-[10px] text-slate-400 uppercase font-bold">Tempo Totale</span>
-                    </div>
-                    <div className="text-lg font-black font-orbitron text-white text-center">
-                      {(savedGame?.timeLeft || 0) + parseInt(localStorage.getItem('career_time_bonus') || '0')}s
-                    </div>
-                    {/* Breakdown if bonus exists */}
-                    {parseInt(localStorage.getItem('career_time_bonus') || '0') > 0 && (
-                      <div className="text-[9px] text-slate-500 text-center mt-0.5">
-                        ({savedGame?.timeLeft || 0}s + {localStorage.getItem('career_time_bonus')}s bonus)
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="bg-black/20 rounded-lg p-2 border border-white/5">
-                    <div className="flex items-center justify-center gap-1 mb-1">
-                      <Trophy className="w-3 h-3 text-amber-400" />
-                      <span className="text-[10px] text-slate-400 uppercase font-bold">Punti</span>
-                    </div>
-                    <div className="text-lg font-black font-orbitron text-white text-center">
-                      {savedGame?.totalScore || 0}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bonus Time Highlight (if exists) */}
-                {parseInt(localStorage.getItem('career_time_bonus') || '0') > 0 && (
-                  <div className="mt-3 bg-gradient-to-r from-amber-900/40 to-orange-900/40 border border-amber-500/40 rounded-lg p-2.5">
-                    <div className="flex items-center justify-center gap-2">
-                      <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-                      <span className="text-xs text-amber-300 font-bold">
-                        BONUS BOSS ATTIVO: +{localStorage.getItem('career_time_bonus')}s
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Action Buttons */}
               <div className="space-y-3 relative z-10">
-                {/* Resume Button */}
                 <button
-                  onPointerDown={(e) => { e.stopPropagation(); soundService.playUIClick(); restoreGame(); }}
-                  className="w-full bg-gradient-to-r from-[#FF8800] to-orange-600 text-white py-4 px-6 rounded-xl font-orbitron font-black uppercase tracking-widest text-sm shadow-lg shadow-[#FF8800]/30 active:scale-95 transition-all border-2 border-white/20 hover:shadow-[#FF8800]/50 flex items-center justify-center gap-3 group"
+                  onPointerDown={(e) => { e.stopPropagation(); restoreGame(); }}
+                  className="w-full bg-[#FF8800] text-white py-4 rounded-xl font-orbitron font-black uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-all border-2 border-white"
                 >
-                  <Play className="w-5 h-5 group-hover:scale-110 transition-transform" />
                   RIPRENDI PARTITA
                 </button>
-
-                {/* Divider */}
-                <div className="flex items-center gap-3 py-2">
-                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-600 to-transparent"></div>
-                  <span className="text-slate-500 text-[10px] font-bold uppercase">Opzioni Avanzate</span>
-                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-600 to-transparent"></div>
-                </div>
-
-                {/* Full Reset Button */}
                 <button
-                  onPointerDown={(e) => { e.stopPropagation(); soundService.playUIClick(); setActiveModal('full_reset_confirm'); }}
-                  className="w-full bg-gradient-to-r from-red-900/50 to-red-800/50 text-red-300 py-3 px-6 rounded-xl font-orbitron font-bold uppercase tracking-widest text-xs border-2 border-red-500/30 active:scale-95 transition-all hover:border-red-500/60 flex items-center justify-center gap-2 group"
+                  onPointerDown={(e) => { e.stopPropagation(); startGame(); }}
+                  className="w-full bg-slate-800 text-slate-400 py-3 rounded-xl font-orbitron font-black uppercase tracking-widest text-xs border border-slate-600 active:scale-95 transition-all hover:text-white"
                 >
-                  <AlertTriangle className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                  RESET TOTALE
+                  NUOVA PARTITA (CANCELLA)
                 </button>
-
-                {/* Back Button */}
                 <button
                   onPointerDown={(e) => { e.stopPropagation(); soundService.playUIClick(); setActiveModal(null); }}
-                  className="w-full py-3 text-slate-500 font-bold uppercase text-xs tracking-widest hover:text-white transition-colors flex items-center justify-center gap-2 group"
+                  className="w-full py-2 text-slate-500 font-bold uppercase text-[10px] tracking-widest hover:text-white transition-colors"
                 >
-                  <Home className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                  TORNA ALLA HOME
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* FULL RESET CONFIRMATION MODAL */}
-        {activeModal === 'full_reset_confirm' && (
-          <div className="fixed inset-0 z-[5001] flex items-center justify-center p-6 modal-overlay bg-black/95 backdrop-blur-lg" onPointerDown={() => setActiveModal('resume_confirm')}>
-            <div className="bg-gradient-to-br from-red-950 via-red-900 to-red-950 border-[3px] border-red-500 w-full max-w-md p-8 rounded-[2rem] shadow-[0_0_80px_rgba(239,68,68,0.6)] flex flex-col relative overflow-hidden animate-pulse" onPointerDown={e => e.stopPropagation()}>
-              {/* Animated Warning Background */}
-              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none"></div>
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent animate-pulse"></div>
-
-              {/* Warning Icon */}
-              <div className="relative z-10 mb-6">
-                <div className="w-24 h-24 mx-auto bg-gradient-to-br from-red-600 to-red-800 rounded-full flex items-center justify-center shadow-lg shadow-red-500/50 animate-pulse border-4 border-red-400">
-                  <AlertTriangle className="w-14 h-14 text-white" strokeWidth={3} />
-                </div>
-              </div>
-
-              {/* Title */}
-              <h2 className="text-3xl font-black font-orbitron text-white mb-3 uppercase tracking-wider relative z-10 text-center">
-                ⚠️ ATTENZIONE ⚠️
-              </h2>
-
-              {/* Warning Message */}
-              <div className="bg-black/40 border-2 border-red-500/50 rounded-xl p-5 mb-6 relative z-10">
-                <p className="text-white font-bold text-center mb-4 leading-relaxed">
-                  Stai per <span className="text-red-400 font-black">CANCELLARE TUTTO</span>:
-                </p>
-                <div className="space-y-2 text-sm text-slate-300">
-                  <div className="flex items-center gap-2">
-                    <X className="w-4 h-4 text-red-400" />
-                    <span>Tutti i livelli completati</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <X className="w-4 h-4 text-red-400" />
-                    <span>Tutti i badge e medaglie</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <X className="w-4 h-4 text-red-400" />
-                    <span>Boss sconfitti e bonus</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <X className="w-4 h-4 text-red-400" />
-                    <span>Statistiche duelli</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <X className="w-4 h-4 text-red-400" />
-                    <span>Punteggi e QI stimato</span>
-                  </div>
-                </div>
-                <p className="text-red-400 font-black text-center mt-4 text-xs uppercase tracking-wider">
-                  Questa azione è IRREVERSIBILE!
-                </p>
-              </div>
-
-              {/* Confirmation Buttons */}
-              <div className="space-y-3 relative z-10">
-                <button
-                  onPointerDown={(e) => { e.stopPropagation(); soundService.playUIClick(); handleFullReset(); }}
-                  className="w-full bg-gradient-to-r from-red-600 to-red-700 text-white py-4 px-6 rounded-xl font-orbitron font-black uppercase tracking-widest text-sm shadow-lg shadow-red-500/50 active:scale-95 transition-all border-2 border-white/30 hover:shadow-red-500/70 flex items-center justify-center gap-3 group"
-                >
-                  <AlertTriangle className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                  SÌ, CANCELLA TUTTO
-                </button>
-
-                <button
-                  onPointerDown={(e) => { e.stopPropagation(); soundService.playUIClick(); setActiveModal('resume_confirm'); }}
-                  className="w-full bg-gradient-to-r from-slate-700 to-slate-800 text-white py-3 px-6 rounded-xl font-orbitron font-bold uppercase tracking-widest text-xs border-2 border-white/20 active:scale-95 transition-all hover:from-slate-600 hover:to-slate-700 flex items-center justify-center gap-2"
-                >
-                  <Shield className="w-4 h-4" />
-                  NO, TORNA INDIETRO
+                  INDIETRO
                 </button>
               </div>
             </div>
@@ -4059,7 +3632,7 @@ const App: React.FC = () => {
           />
         )}
 
-        <footer className="mt-auto py-6 text-slate-600 text-slate-600 text-[8px] tracking-[0.4em] uppercase font-black z-10 pointer-events-none opacity-0">AI Evaluation Engine v3.6 - LOCAL DEV</footer>
+        <footer className="mt-auto py-6 text-slate-600 text-slate-600 text-[8px] tracking-[0.4em] uppercase font-black z-10 pointer-events-none opacity-40">AI Evaluation Engine v3.6 - LOCAL DEV</footer>
 
         {/* HOMEPAGE TUTORIAL OVERLAY */}
         <ComicTutorial
