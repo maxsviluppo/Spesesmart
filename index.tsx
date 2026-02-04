@@ -404,10 +404,19 @@ const WeatherWidget = () => {
   );
 };
 
-// Voice Input
+// Voice Input (Safe for Safari)
 const VoiceInput = ({ onResult }: { onResult: (text: string) => void }) => {
   const [isListening, setIsListening] = useState(false);
+  const [isSupported, setIsSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    // Check support only on mount to avoid SSR/Render crashes
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      setIsSupported(!!SpeechRecognition);
+    }
+  }, []);
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current) {
@@ -418,19 +427,23 @@ const VoiceInput = ({ onResult }: { onResult: (text: string) => void }) => {
   }, []);
 
   const startListening = useCallback(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Browser non supportato o modalità PWA su iOS limitata.");
+    if (!isSupported) {
+      alert("Input vocale non supportato su questo browser (prova Chrome o Safari aggiornato).");
       return;
     }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     stopListening();
+
     try {
       const recognition = new SpeechRecognition();
       recognitionRef.current = recognition;
       recognition.lang = 'it-IT';
       recognition.continuous = false;
       recognition.interimResults = false;
+
       recognition.onstart = () => setIsListening(true);
+
       recognition.onresult = (event: any) => {
         const transcript = event.results?.[0]?.[0]?.transcript;
         if (transcript && typeof transcript === 'string') {
@@ -438,11 +451,22 @@ const VoiceInput = ({ onResult }: { onResult: (text: string) => void }) => {
         }
         stopListening();
       };
-      recognition.onerror = () => stopListening();
+
+      recognition.onerror = (e: any) => {
+        console.warn("Speech error:", e);
+        stopListening();
+      };
+
       recognition.onend = () => setIsListening(false);
+
       recognition.start();
-    } catch (e) { stopListening(); }
-  }, [onResult, stopListening]);
+    } catch (e) {
+      console.error("Speech start error:", e);
+      stopListening();
+    }
+  }, [onResult, stopListening, isSupported]);
+
+  if (!isSupported) return null; // Don't render button if not supported OR if checking failed
 
   return (
     <button type="button" onClick={isListening ? stopListening : startListening} className={`p-3 rounded-xl transition-all flex items-center justify-center shrink-0 ${isListening ? 'bg-red-600 text-white animate-pulse' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
@@ -1357,9 +1381,9 @@ const App = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 pb-32 font-sans">
+    <div className="min-h-[100dvh] bg-slate-950 text-slate-200 pb-32 font-sans">
       <ErrorBoundary>
-        <div className="max-w-lg mx-auto bg-slate-950 min-h-screen relative shadow-2xl">
+        <div className="max-w-lg mx-auto bg-slate-950 min-h-[100dvh] relative shadow-2xl">
           <header className="px-6 pt-12 pb-6 bg-gradient-to-b from-indigo-950/20 to-slate-950">
             <div className="flex justify-between items-start mb-6">
               <div>
