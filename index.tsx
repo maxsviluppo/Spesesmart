@@ -1,5 +1,20 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
+
+// GLOBAL ERROR HANDLER (Must be first)
+window.onerror = function (message, source, lineno, colno, error) {
+  const root = document.getElementById('root');
+  if (root) {
+    root.innerHTML = `<div style="color:white; background:black; font-family:sans-serif; padding:20px;">
+      <h2 style="color:red">Errore Critico Avvio</h2>
+      <p>${message}</p>
+      <small>${source}:${lineno}</small>
+      <br/><br/>
+      <button onclick="localStorage.clear(); location.reload()" style="padding:10px; background:#333; color:white; border:1px solid #555;">Reset & Riavvia</button>
+    </div>`;
+  }
+};
+
 console.log("App starting...");
 import {
   Plus, Home, ShoppingCart, ListTodo, Bell, BarChart3,
@@ -11,6 +26,19 @@ import {
 import { GoogleGenAI } from "@google/genai";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { createClient } from '@supabase/supabase-js';
+
+// SAFE STORAGE HELPER
+const safeStorage = {
+  getItem: (key: string) => {
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  },
+  setItem: (key: string, value: string) => {
+    try { localStorage.setItem(key, value); } catch (e) { }
+  },
+  removeItem: (key: string) => {
+    try { localStorage.removeItem(key); } catch (e) { }
+  }
+};
 
 // --- CONFIGURAZIONE DATABASE DINAMICA ---
 // Non scriviamo più le chiavi qui per sicurezza.
@@ -84,8 +112,8 @@ const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#e
 
 // Helper per Supabase Client (Dinamico)
 const getSupabaseClient = () => {
-  const url = localStorage.getItem('sb_url');
-  const key = localStorage.getItem('sb_key');
+  const url = safeStorage.getItem('sb_url');
+  const key = safeStorage.getItem('sb_key');
 
   if (!url || !key) return null;
 
@@ -839,23 +867,23 @@ const AddModal = ({ isOpen, onClose, onSave, initialData, expenseCategories, inc
 // --- MAIN APP ---
 
 const App = () => {
-  const [isConfigured, setIsConfigured] = useState(() => !!localStorage.getItem('sb_url') && !!localStorage.getItem('sb_key'));
+  const [isConfigured, setIsConfigured] = useState(() => !!safeStorage.getItem('sb_url') && !!safeStorage.getItem('sb_key'));
 
-  const [startUpTab, setStartUpTab] = useState(() => localStorage.getItem('startUpTab') || 'home');
-  const [notificationsEnabled, setNotificationsEnabled] = useState(() => localStorage.getItem('notificationsEnabled') === 'true');
-  const [alarmVolume, setAlarmVolume] = useState(() => parseFloat(localStorage.getItem('alarmVolume') || '0.5'));
+  const [startUpTab, setStartUpTab] = useState(() => safeStorage.getItem('startUpTab') || 'home');
+  const [notificationsEnabled, setNotificationsEnabled] = useState(() => safeStorage.getItem('notificationsEnabled') === 'true');
+  const [alarmVolume, setAlarmVolume] = useState(() => parseFloat(safeStorage.getItem('alarmVolume') || '0.5'));
   const [activeTab, setActiveTab] = useState<'home' | 'shopping' | 'doit' | 'alerts' | 'reports' | 'memos'>(startUpTab as any);
 
   // Supabase Config
   const [currentUser, setCurrentUser] = useState<any>(null);
 
-  const [isBalanceHidden, setIsBalanceHidden] = useState(() => localStorage.getItem('isBalanceHidden') === 'true');
-  const [userName, setUserName] = useState(() => localStorage.getItem('userName') || '');
+  const [isBalanceHidden, setIsBalanceHidden] = useState(() => safeStorage.getItem('isBalanceHidden') === 'true');
+  const [userName, setUserName] = useState(() => safeStorage.getItem('userName') || '');
 
   // Strict JSON Parsing to avoid [object Object] errors
   const safeJsonParse = (key: string, defaultVal: any) => {
     try {
-      const stored = localStorage.getItem(key);
+      const stored = safeStorage.getItem(key);
       if (!stored) return defaultVal;
       const parsed = JSON.parse(stored);
       if (!Array.isArray(parsed)) return defaultVal;
