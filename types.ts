@@ -1,35 +1,35 @@
-export type TransactionType = 'expense' | 'income';
 
-export interface Transaction {
+export type CellType = 'number' | 'operator';
+
+export interface HexCellData {
   id: string;
-  amount: number;
-  description: string;
-  category: string;
-  date: string; // ISO string
-  type: TransactionType;
+  type: CellType;
+  value: string;
+  row: number;
+  col: number;
 }
 
-export const DEFAULT_EXPENSE_CATEGORIES = [
-  'Alimentari',
-  'Trasporti',
-  'Casa',
-  'Svago',
-  'Salute',
-  'Shopping',
-  'Ristoranti',
-  'Altro'
-];
+export interface GameState {
+  score: number;
+  totalScore: number;
+  streak: number;
+  level: number;
+  timeLeft: number;
+  targetResult: number;
+  status: 'playing' | 'level-complete' | 'game-over' | 'idle' | 'intro' | 'opponent-surrendered' | 'round-won' | 'round-lost';
+  estimatedIQ: number;
+  lastLevelPerfect: boolean;
+  basePoints: number;
 
-export const DEFAULT_INCOME_CATEGORIES = [
-  'Stipendio',
-  'Regalo',
-  'Vendita',
-  'Investimenti',
-  'Altro'
-];
+  // targetQueue: number[]; // Deprecated in favor of levelTargets
+  levelTargets: { value: number; displayValue?: string; completed: boolean; owner?: 'p1' | 'p2' }[];
+  isBossLevel?: boolean;
+  bossLevelId?: number | null;
+}
 
-export interface MonthlyStats {
-  totalIncome: number;
-  totalExpense: number;
-  balance: number;
+export interface PlayerRank {
+  name: string;
+  score: number;
+  iq: number;
+  country: string;
 }
